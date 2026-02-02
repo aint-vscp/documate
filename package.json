@@ -1,0 +1,40 @@
+{
+  "name": "documate",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@kiltprotocol/sdk-js": "^1.0.0",
+    "@polkadot/api": "^16.5.4",
+    "@polkadot/extension-dapp": "^0.62.6",
+    "next": "15.5.11",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.11",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "@polkadot/api": "^16.5.4",
+    "@polkadot/api-derive": "^16.5.4",
+    "@polkadot/types": "^16.5.4",
+    "@polkadot/util": "^14.0.1",
+    "@polkadot/util-crypto": "^14.0.1",
+    "@polkadot/keyring": "^14.0.1",
+    "eslint": "^9",
+    "glob": "^11.0.0"
+  }
+}
