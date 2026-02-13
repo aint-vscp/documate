@@ -10,9 +10,14 @@
   },
   "dependencies": {
     "@kiltprotocol/sdk-js": "^1.0.0",
+    "@libsql/client": "^0.17.0",
     "@polkadot/api": "^16.5.4",
+    "@polkadot/api-contract": "^16.5.4",
     "@polkadot/extension-dapp": "^0.62.6",
+    "@prisma/adapter-libsql": "^7.4.0",
+    "@prisma/client": "^7.4.0",
     "next": "15.5.11",
+    "prisma": "^7.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"

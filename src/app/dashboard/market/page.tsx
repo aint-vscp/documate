@@ -1,116 +1,112 @@
 /**
  * DocuMarket Page
- * NFT Template Marketplace
+ * NFT Template Marketplace - connected to backend APIs
  */
 "use client";
 
-import { useState } from "react";
-import { useIsWalletConnected } from "@/hooks/useWallet";
-import type { TemplateNFT, TemplateCategory } from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { useIsWalletConnected, useSelectedAccount } from "@/hooks/useWallet";
+import type { TemplateCategory } from "@/types";
 
-// Mock templates for MVP
-const MOCK_TEMPLATES: TemplateNFT[] = [
+interface MarketTemplate {
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    price: number;
+    royaltyPercent: number;
+    ipfsCid: string;
+    isVerified: boolean;
+    salesCount: number;
+    creator?: {
+        walletAddress: string;
+        did?: string | null;
+    };
+    _count?: {
+        purchases: number;
+    };
+}
+
+// Fallback templates shown when the DB is empty (for first-run experience)
+const FALLBACK_TEMPLATES: MarketTemplate[] = [
     {
-        id: "1",
-        collectionId: "documate-templates",
-        creator: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+        id: "fallback-1",
+        title: "Professional NDA Template",
+        description:
+            "A comprehensive Non-Disclosure Agreement suitable for business partnerships and client relationships.",
+        category: "Legal",
         price: 50,
         royaltyPercent: 10,
-        ipfsHash: "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco",
-        category: "Legal",
-        metadata: {
-            name: "Professional NDA Template",
-            description:
-                "A comprehensive Non-Disclosure Agreement suitable for business partnerships and client relationships.",
-            version: "1.0.0",
-            tags: ["NDA", "confidentiality", "legal"],
-            createdAt: "2024-01-15T10:00:00Z",
-        },
+        ipfsCid: "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco",
+        isVerified: true,
+        salesCount: 14,
+        creator: { walletAddress: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY" },
     },
     {
-        id: "2",
-        collectionId: "documate-templates",
-        creator: "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+        id: "fallback-2",
+        title: "Software Development Contract",
+        description:
+            "Complete contract template for software development projects with milestone payments.",
+        category: "Engineering",
         price: 75,
         royaltyPercent: 15,
-        ipfsHash: "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
-        category: "Engineering",
-        metadata: {
-            name: "Software Development Contract",
-            description:
-                "Complete contract template for software development projects with milestone payments.",
-            version: "2.1.0",
-            tags: ["software", "development", "milestones"],
-            createdAt: "2024-02-20T14:30:00Z",
-        },
+        ipfsCid: "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+        isVerified: true,
+        salesCount: 8,
+        creator: { walletAddress: "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty" },
     },
     {
-        id: "3",
-        collectionId: "documate-templates",
-        creator: "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+        id: "fallback-3",
+        title: "Freelance Design Agreement",
+        description:
+            "Template for graphic design, branding, and creative projects with revision clauses.",
+        category: "Creative",
         price: 30,
         royaltyPercent: 8,
-        ipfsHash: "QmZTR5bcpQD7cFgTorqxZDYaew1Wqgfbd2ud9QqGPAkK2V",
-        category: "Creative",
-        metadata: {
-            name: "Freelance Design Agreement",
-            description:
-                "Template for graphic design, branding, and creative projects with revision clauses.",
-            version: "1.2.0",
-            tags: ["design", "creative", "freelance"],
-            createdAt: "2024-03-10T09:15:00Z",
-        },
+        ipfsCid: "QmZTR5bcpQD7cFgTorqxZDYaew1Wqgfbd2ud9QqGPAkK2V",
+        isVerified: false,
+        salesCount: 22,
+        creator: { walletAddress: "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy" },
     },
     {
-        id: "4",
-        collectionId: "documate-templates",
-        creator: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+        id: "fallback-4",
+        title: "Partnership Agreement",
+        description:
+            "Comprehensive partnership agreement for joint ventures and business collaborations.",
+        category: "Legal",
         price: 100,
         royaltyPercent: 12,
-        ipfsHash: "QmNrgEMcUygbKzZeZgYFosdd27VE9KnWbyUD73bKZJ3bGi",
-        category: "Legal",
-        metadata: {
-            name: "Partnership Agreement",
-            description:
-                "Comprehensive partnership agreement for joint ventures and business collaborations.",
-            version: "1.5.0",
-            tags: ["partnership", "business", "joint-venture"],
-            createdAt: "2024-01-28T16:45:00Z",
-        },
+        ipfsCid: "QmNrgEMcUygbKzZeZgYFosdd27VE9KnWbyUD73bKZJ3bGi",
+        isVerified: true,
+        salesCount: 5,
+        creator: { walletAddress: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY" },
     },
     {
-        id: "5",
-        collectionId: "documate-templates",
-        creator: "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+        id: "fallback-5",
+        title: "Technical Consulting SOW",
+        description:
+            "Scope of Work template for technical consulting and advisory services.",
+        category: "Engineering",
         price: 45,
         royaltyPercent: 10,
-        ipfsHash: "QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB",
-        category: "Engineering",
-        metadata: {
-            name: "Technical Consulting SOW",
-            description:
-                "Scope of Work template for technical consulting and advisory services.",
-            version: "1.0.0",
-            tags: ["consulting", "SOW", "technical"],
-            createdAt: "2024-02-05T11:20:00Z",
-        },
+        ipfsCid: "QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB",
+        isVerified: false,
+        salesCount: 11,
+        creator: { walletAddress: "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty" },
     },
     {
-        id: "6",
-        collectionId: "documate-templates",
-        creator: "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+        id: "fallback-6",
+        title: "Content Creation Contract",
+        description:
+            "Template for content creators, writers, and social media managers.",
+        category: "Creative",
         price: 25,
         royaltyPercent: 5,
-        ipfsHash: "QmSgvgwxZGaBLq2WQWnyPqvBbTLKy6N8wFLhdyXvp2Qn5f",
-        category: "Creative",
-        metadata: {
-            name: "Content Creation Contract",
-            description:
-                "Template for content creators, writers, and social media managers.",
-            version: "1.1.0",
-            tags: ["content", "writing", "social-media"],
-            createdAt: "2024-03-15T08:00:00Z",
-        },
+        ipfsCid: "QmSgvgwxZGaBLq2WQWnyPqvBbTLKy6N8wFLhdyXvp2Qn5f",
+        isVerified: false,
+        salesCount: 37,
+        creator: { walletAddress: "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy" },
     },
 ];
 
@@ -129,24 +125,100 @@ const categoryColors: Record<TemplateCategory, string> = {
 
 export default function MarketPage() {
     const isConnected = useIsWalletConnected();
-    const [selectedCategory, setSelectedCategory] = useState<
-        TemplateCategory | "All"
-    >("All");
+    const selectedAccount = useSelectedAccount();
+    const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | "All">("All");
     const [searchQuery, setSearchQuery] = useState("");
+    const [templates, setTemplates] = useState<MarketTemplate[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const filteredTemplates = MOCK_TEMPLATES.filter((template) => {
+    // Purchase modal state
+    const [purchaseTarget, setPurchaseTarget] = useState<MarketTemplate | null>(null);
+    const [isPurchasing, setIsPurchasing] = useState(false);
+    const [purchaseResult, setPurchaseResult] = useState<{
+        success: boolean;
+        message: string;
+    } | null>(null);
+
+    // Fetch templates from API
+    const fetchTemplates = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (selectedCategory !== "All") params.set("category", selectedCategory);
+            if (searchQuery) params.set("search", searchQuery);
+
+            const response = await fetch(`/api/market/templates?${params}`);
+            const data = await response.json();
+
+            if (data.success && data.data.length > 0) {
+                setTemplates(data.data);
+            } else {
+                // If no database templates yet, use fallback display templates
+                setTemplates(FALLBACK_TEMPLATES);
+            }
+        } catch {
+            // Fallback to display templates on fetch failure
+            setTemplates(FALLBACK_TEMPLATES);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [selectedCategory, searchQuery]);
+
+    useEffect(() => {
+        fetchTemplates();
+    }, [fetchTemplates]);
+
+    // Client-side filtering for fallback templates
+    const filteredTemplates = templates.filter((template) => {
         const matchesCategory =
             selectedCategory === "All" || template.category === selectedCategory;
         const matchesSearch =
-            template.metadata.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            template.metadata.description
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase()) ||
-            template.metadata.tags.some((tag) =>
-                tag.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+            !searchQuery ||
+            template.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            template.description.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesCategory && matchesSearch;
     });
+
+    const handlePurchase = async (template: MarketTemplate) => {
+        if (!selectedAccount?.address) return;
+
+        setIsPurchasing(true);
+        setPurchaseResult(null);
+
+        try {
+            const response = await fetch("/api/market/purchase", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    templateId: template.id,
+                    buyerAddress: selectedAccount.address,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setPurchaseResult({
+                    success: true,
+                    message: `Successfully purchased "${template.title}"! Revenue split: ${data.data.split.creator} DOCU to creator, ${data.data.split.company} DOCU to treasury, ${data.data.split.burn} DOCU burned.`,
+                });
+                // Refresh templates
+                fetchTemplates();
+            } else {
+                setPurchaseResult({
+                    success: false,
+                    message: data.error || "Purchase failed",
+                });
+            }
+        } catch {
+            setPurchaseResult({
+                success: false,
+                message: "Network error. Please try again.",
+            });
+        } finally {
+            setIsPurchasing(false);
+        }
+    };
 
     const truncateAddress = (address: string) => {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -157,34 +229,71 @@ export default function MarketPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-semibold text-white">DocuMarket</h2>
-                    <p className="text-gray-400 text-sm">
-                        Browse and purchase professional document templates as NFTs
+                    <h1 className="text-3xl font-bold text-white">DocuMarket</h1>
+                    <p className="text-gray-400 mt-1">
+                        Browse and purchase verified document templates as NFTs
                     </p>
                 </div>
+                <Link
+                    href="/dashboard/studio"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-opacity font-medium"
+                >
+                    <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                    </svg>
+                    Create Template
+                </Link>
+            </div>
 
-                {isConnected && (
-                    <button className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all text-sm font-medium flex items-center gap-2">
-                        <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 4v16m8-8H4"
-                            />
-                        </svg>
-                        Create Template
-                    </button>
-                )}
+            {/* Revenue Split Banner */}
+            <div className="bg-gradient-to-r from-pink-500/5 to-purple-500/5 border border-pink-500/20 rounded-2xl p-4">
+                <div className="flex items-center gap-6 flex-wrap">
+                    <span className="text-gray-400 text-sm font-medium">
+                        THE IRON RULES:
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                        <span className="text-gray-300 text-sm">75% Creator</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-pink-500" />
+                        <span className="text-gray-300 text-sm">20% Treasury</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-orange-500" />
+                        <span className="text-gray-300 text-sm">5% Burn</span>
+                    </div>
+                </div>
             </div>
 
             {/* Filters */}
             <div className="flex flex-col md:flex-row gap-4">
+                {/* Category Tabs */}
+                <div className="flex gap-2">
+                    {categories.map((cat) => (
+                        <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${selectedCategory === cat
+                                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+                                    : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
+                                }`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
+
                 {/* Search */}
                 <div className="flex-1">
                     <div className="relative">
@@ -203,116 +312,119 @@ export default function MarketPage() {
                         </svg>
                         <input
                             type="text"
+                            placeholder="Search templates..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search templates..."
-                            className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+                            className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
                         />
                     </div>
                 </div>
+            </div>
 
-                {/* Category Filter */}
-                <div className="flex gap-2">
-                    {categories.map((cat) => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === cat
-                                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
-                                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
-                                }`}
+            {/* Loading State */}
+            {isLoading && (
+                <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-2 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" />
+                </div>
+            )}
+
+            {/* Template Grid */}
+            {!isLoading && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredTemplates.map((template) => (
+                        <div
+                            key={template.id}
+                            className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl overflow-hidden hover:border-pink-500/30 transition-all duration-300"
                         >
-                            {cat}
-                        </button>
+                            {/* Preview Header */}
+                            <div className="h-32 bg-gradient-to-br from-gray-700/50 to-gray-800/50 flex items-center justify-center relative">
+                                <svg
+                                    className="w-16 h-16 text-gray-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={1}
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    />
+                                </svg>
+                                <span
+                                    className={`absolute top-3 right-3 text-xs px-2 py-0.5 rounded-full border ${categoryColors[template.category as TemplateCategory] ||
+                                        "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                                        }`}
+                                >
+                                    {template.category}
+                                </span>
+                                {template.isVerified && (
+                                    <span className="absolute top-3 left-3 flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Verified
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-5">
+                                <h3 className="text-white font-semibold mb-2 group-hover:text-pink-400 transition-colors">
+                                    {template.title}
+                                </h3>
+                                <p className="text-gray-400 text-sm line-clamp-2 mb-4">
+                                    {template.description}
+                                </p>
+
+                                {/* Sales Count */}
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-xs text-gray-500">
+                                        {template.salesCount || 0} sales
+                                    </span>
+                                </div>
+
+                                {/* Creator & Price */}
+                                <div className="flex items-center justify-between pt-4 border-t border-gray-700/50">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
+                                        <span className="text-gray-500 text-xs">
+                                            {template.creator
+                                                ? truncateAddress(template.creator.walletAddress)
+                                                : "Unknown"}
+                                        </span>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-white font-bold">
+                                            {template.price}{" "}
+                                            <span className="text-pink-400 text-sm">$DOCU</span>
+                                        </p>
+                                        <p className="text-gray-500 text-xs">
+                                            {template.royaltyPercent}% royalty
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Buy Button */}
+                                {isConnected ? (
+                                    <button
+                                        onClick={() => setPurchaseTarget(template)}
+                                        className="w-full mt-4 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-600 transition-all font-medium"
+                                    >
+                                        Buy License
+                                    </button>
+                                ) : (
+                                    <p className="text-center text-gray-500 text-sm mt-4">
+                                        Connect wallet to purchase
+                                    </p>
+                                )}
+                            </div>
+                        </div>
                     ))}
                 </div>
-            </div>
+            )}
 
-            {/* Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTemplates.map((template) => (
-                    <div
-                        key={template.id}
-                        className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl overflow-hidden hover:border-pink-500/30 transition-all duration-300"
-                    >
-                        {/* Preview Header */}
-                        <div className="h-32 bg-gradient-to-br from-gray-700/50 to-gray-800/50 flex items-center justify-center relative">
-                            <svg
-                                className="w-16 h-16 text-gray-600"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={1}
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                            </svg>
-                            <span
-                                className={`absolute top-3 right-3 text-xs px-2 py-0.5 rounded-full border ${categoryColors[template.category]}`}
-                            >
-                                {template.category}
-                            </span>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-5">
-                            <h3 className="text-white font-semibold mb-2 group-hover:text-pink-400 transition-colors">
-                                {template.metadata.name}
-                            </h3>
-                            <p className="text-gray-400 text-sm line-clamp-2 mb-4">
-                                {template.metadata.description}
-                            </p>
-
-                            {/* Tags */}
-                            <div className="flex flex-wrap gap-1 mb-4">
-                                {template.metadata.tags.slice(0, 3).map((tag) => (
-                                    <span
-                                        key={tag}
-                                        className="text-xs bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded"
-                                    >
-                                        #{tag}
-                                    </span>
-                                ))}
-                            </div>
-
-                            {/* Creator & Price */}
-                            <div className="flex items-center justify-between pt-4 border-t border-gray-700/50">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
-                                    <span className="text-gray-500 text-xs">
-                                        {truncateAddress(template.creator)}
-                                    </span>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-white font-bold">
-                                        {template.price}{" "}
-                                        <span className="text-pink-400 text-sm">$DOCU</span>
-                                    </p>
-                                    <p className="text-gray-500 text-xs">
-                                        {template.royaltyPercent}% royalty
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Buy Button */}
-                            {isConnected ? (
-                                <button className="w-full mt-4 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-600 transition-all font-medium">
-                                    Buy License
-                                </button>
-                            ) : (
-                                <p className="text-center text-gray-500 text-sm mt-4">
-                                    Connect wallet to purchase
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {filteredTemplates.length === 0 && (
+            {!isLoading && filteredTemplates.length === 0 && (
                 <div className="text-center py-12">
                     <svg
                         className="w-12 h-12 text-gray-600 mx-auto mb-4"
@@ -328,6 +440,89 @@ export default function MarketPage() {
                         />
                     </svg>
                     <p className="text-gray-400">No templates found matching your search.</p>
+                </div>
+            )}
+
+            {/* Purchase Confirmation Modal */}
+            {purchaseTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-gray-900 border border-gray-700/50 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-2">
+                            Confirm Purchase
+                        </h3>
+                        <p className="text-gray-400 text-sm mb-6">
+                            You are about to purchase &quot;{purchaseTarget.title}&quot;
+                        </p>
+
+                        {/* Revenue Split Display */}
+                        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6 space-y-3">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-400">Total Price</span>
+                                <span className="text-white font-bold">
+                                    {purchaseTarget.price} $DOCU
+                                </span>
+                            </div>
+                            <div className="border-t border-gray-700/50 pt-3 space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-emerald-400">Creator (75%)</span>
+                                    <span className="text-gray-300">
+                                        {(purchaseTarget.price * 0.75).toFixed(2)} $DOCU
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-pink-400">Treasury (20%)</span>
+                                    <span className="text-gray-300">
+                                        {(purchaseTarget.price * 0.2).toFixed(2)} $DOCU
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-orange-400">Burn (5%)</span>
+                                    <span className="text-gray-300">
+                                        {(purchaseTarget.price * 0.05).toFixed(2)} $DOCU
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Result Message */}
+                        {purchaseResult && (
+                            <div
+                                className={`p-3 rounded-xl text-sm mb-4 ${purchaseResult.success
+                                        ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                        : "bg-red-500/10 border border-red-500/30 text-red-400"
+                                    }`}
+                            >
+                                {purchaseResult.message}
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            {!purchaseResult?.success && (
+                                <button
+                                    onClick={() => handlePurchase(purchaseTarget)}
+                                    disabled={isPurchasing}
+                                    className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {isPurchasing ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        "Confirm Purchase"
+                                    )}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    setPurchaseTarget(null);
+                                    setPurchaseResult(null);
+                                }}
+                                className={`${purchaseResult?.success ? "flex-1" : ""
+                                    } py-3 px-4 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 transition-colors`}
+                            >
+                                {purchaseResult?.success ? "Close" : "Cancel"}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
