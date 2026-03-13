@@ -411,6 +411,34 @@ export function extractPlaceholders(content: string): string[] {
 }
 
 /**
+ * Build PlaceholderField[] from template content by auto-detecting {{...}} tokens.
+ * Merges with any existing placeholders defined on the template (those take priority).
+ */
+export function buildPlaceholderFields(template: DocumentTemplate): import("@/types").PlaceholderField[] {
+    const existingByKey = new Map(template.placeholders.map((p) => [p.key, p]));
+    const contentKeys = extractPlaceholders(template.content);
+
+    return contentKeys.map((key) => {
+        if (existingByKey.has(key)) {
+            return existingByKey.get(key)!;
+        }
+        // Auto-generate a field definition from the key name
+        const label = key
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        let type: "text" | "date" | "address" | "number" | "textarea" = "text";
+        const keyLower = key.toLowerCase();
+        if (keyLower.includes("date") || keyLower.includes("deadline")) type = "date";
+        else if (keyLower.includes("wallet") || keyLower.includes("address")) type = "address";
+        else if (keyLower.includes("amount") || keyLower.includes("total") || keyLower.includes("subtotal") || keyLower.includes("percent") || keyLower.includes("price") || keyLower.includes("count")) type = "number";
+        else if (keyLower.includes("description") || keyLower.includes("bio") || keyLower.includes("deliverables") || keyLower.includes("notes")) type = "textarea";
+
+        return { key, label, type, required: false };
+    });
+}
+
+/**
  * Validate that all required placeholders have values
  */
 export function validatePlaceholderValues(

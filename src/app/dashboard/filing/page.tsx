@@ -1,6 +1,6 @@
 /**
  * DocuWriter Page
- * Split-screen interface: Template Gallery/Editor + AI Chat Sidebar
+ * Split-screen interface: Placeholder Fields + Live Preview + AI Chat Sidebar
  * Privacy-first AI document drafting with DID auto-personalization
  */
 "use client";
@@ -9,10 +9,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useIsWalletConnected, useSelectedAccount } from "@/hooks/useWallet";
 import { sendToTEE, checkTEEHealth } from "@/lib/polkadot/phala";
 import { loadUserProfile } from "@/lib/polkadot/kilt";
-import { FREE_TEMPLATES, getAllTemplates } from "@/lib/document/templateService";
+import { FREE_TEMPLATES, getAllTemplates, buildPlaceholderFields } from "@/lib/document/templateService";
 import { TemplateGallery } from "@/components/document/TemplateGallery";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
-import type { AIMessage, DocumentTemplate, UserProfile } from "@/types";
+import type { AIMessage, DocumentTemplate, PlaceholderField, UserProfile } from "@/types";
 
 type ViewMode = "gallery" | "editor";
 
@@ -23,7 +23,8 @@ export default function DocuWriterPage() {
     // View state
     const [viewMode, setViewMode] = useState<ViewMode>("gallery");
     const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
-    const [renderedContent, setRenderedContent] = useState("");
+    const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
+    const [activePlaceholders, setActivePlaceholders] = useState<PlaceholderField[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
 
     // AI Chat state
@@ -55,6 +56,19 @@ export default function DocuWriterPage() {
     }, [messages]);
 
     /**
+     * Compute rendered content from template + current values
+     */
+    const renderedContent = useCallback(() => {
+        if (!selectedTemplate) return "";
+        let content = selectedTemplate.content;
+        for (const p of activePlaceholders) {
+            const value = placeholderValues[p.key] || `[${p.label}]`;
+            content = content.replace(new RegExp(`\\{\\{${p.key}\\}\\}`, "g"), value);
+        }
+        return content;
+    }, [selectedTemplate, activePlaceholders, placeholderValues]);
+
+    /**
      * Extract DID credential data for easy access
      */
     const getDIDData = useCallback(() => {
@@ -75,9 +89,9 @@ export default function DocuWriterPage() {
     const autoFillWithDID = useCallback((template: DocumentTemplate): Record<string, string> => {
         const values: Record<string, string> = {};
         const didData = getDIDData();
+        const fields = buildPlaceholderFields(template);
 
-        template.placeholders.forEach((placeholder) => {
-            // Set default values first
+        fields.forEach((placeholder) => {
             if (placeholder.defaultValue) {
                 values[placeholder.key] = placeholder.defaultValue;
             }
@@ -85,7 +99,6 @@ export default function DocuWriterPage() {
             const keyLower = placeholder.key.toLowerCase();
 
             // === NAME FIELDS ===
-            // Your name / sender name / freelancer name / party_a
             if (
                 (keyLower.includes("name") || keyLower.includes("sender")) &&
                 !keyLower.includes("client") &&
@@ -93,16 +106,10 @@ export default function DocuWriterPage() {
                 !keyLower.includes("party_b") &&
                 !keyLower.includes("receiver")
             ) {
-                if (didData.name) {
-                    values[placeholder.key] = didData.name;
-                }
+                if (didData.name) values[placeholder.key] = didData.name;
             }
-
-            // Explicit freelancer/party_a matches
             if (keyLower === "freelancer_name" || keyLower === "party_a_name" || keyLower === "sender_name") {
-                if (didData.name) {
-                    values[placeholder.key] = didData.name;
-                }
+                if (didData.name) values[placeholder.key] = didData.name;
             }
 
             // === WALLET ADDRESS FIELDS ===
@@ -113,40 +120,28 @@ export default function DocuWriterPage() {
                 !keyLower.includes("receiver") &&
                 !keyLower.includes("party_b")
             ) {
-                if (selectedAccount?.address) {
-                    values[placeholder.key] = selectedAccount.address;
-                }
+                if (selectedAccount?.address) values[placeholder.key] = selectedAccount.address;
             }
-
-            // Explicit sender/freelancer wallet
             if (keyLower === "freelancer_wallet" || keyLower === "sender_wallet" || keyLower === "party_a_wallet") {
-                if (selectedAccount?.address) {
-                    values[placeholder.key] = selectedAccount.address;
-                }
+                if (selectedAccount?.address) values[placeholder.key] = selectedAccount.address;
             }
 
             // === ROLE / TITLE FIELDS ===
             if (keyLower.includes("role") || keyLower.includes("title") || keyLower.includes("position")) {
-                if (didData.role) {
-                    values[placeholder.key] = didData.role;
-                }
+                if (didData.role) values[placeholder.key] = didData.role;
             }
 
             // === SKILLS / EXPERTISE FIELDS ===
             if (keyLower.includes("skill") || keyLower.includes("expertise") || keyLower.includes("specialization")) {
-                if (didData.skills && didData.skills.length > 0) {
-                    values[placeholder.key] = didData.skills.join(", ");
-                }
+                if (didData.skills && didData.skills.length > 0) values[placeholder.key] = didData.skills.join(", ");
             }
 
             // === BIO / DESCRIPTION FIELDS ===
             if (keyLower.includes("bio") || keyLower.includes("about") || keyLower.includes("description") || keyLower.includes("summary")) {
-                if (didData.bio) {
-                    values[placeholder.key] = didData.bio;
-                }
+                if (didData.bio) values[placeholder.key] = didData.bio;
             }
 
-            // === SERVICE DESCRIPTION (combine role + skills) ===
+            // === SERVICE DESCRIPTION ===
             if (keyLower === "service_description" || keyLower === "services") {
                 if (didData.role && didData.skills && didData.skills.length > 0) {
                     values[placeholder.key] = `Professional ${didData.role} services including: ${didData.skills.join(", ")}.`;
@@ -158,17 +153,14 @@ export default function DocuWriterPage() {
             // === DATE FIELDS ===
             if (placeholder.type === "date") {
                 const today = new Date().toISOString().split("T")[0];
-                // Start dates, effective dates, agreement dates
                 if (keyLower.includes("effective") || keyLower.includes("agreement") || keyLower.includes("start") || keyLower.includes("invoice")) {
                     values[placeholder.key] = today;
                 }
-                // Due dates (default 30 days from now)
                 if (keyLower.includes("due")) {
                     const dueDate = new Date();
                     dueDate.setDate(dueDate.getDate() + 30);
                     values[placeholder.key] = dueDate.toISOString().split("T")[0];
                 }
-                // Deadline (default 14 days from now)
                 if (keyLower.includes("deadline")) {
                     const deadline = new Date();
                     deadline.setDate(deadline.getDate() + 14);
@@ -178,16 +170,10 @@ export default function DocuWriterPage() {
 
             // === DID / IDENTIFIER FIELDS ===
             if (keyLower.includes("did") || keyLower === "identifier") {
-                if (didData.did) {
-                    values[placeholder.key] = didData.did;
-                }
+                if (didData.did) values[placeholder.key] = didData.did;
             }
-
-            // === WEB3 NAME FIELDS ===
             if (keyLower.includes("web3name") || keyLower.includes("w3n")) {
-                if (didData.web3name) {
-                    values[placeholder.key] = didData.web3name;
-                }
+                if (didData.web3name) values[placeholder.key] = didData.web3name;
             }
         });
 
@@ -195,49 +181,45 @@ export default function DocuWriterPage() {
     }, [getDIDData, selectedAccount]);
 
     /**
-     * Render template content with placeholder values
+     * Load a template: set up placeholders, auto-fill, switch to editor
      */
-    const renderContent = useCallback((template: DocumentTemplate, values: Record<string, string>): string => {
-        let content = template.content;
-        template.placeholders.forEach((placeholder) => {
-            const value = values[placeholder.key] || `[${placeholder.label}]`;
-            content = content.replace(new RegExp(`\\{\\{${placeholder.key}\\}\\}`, "g"), value);
-        });
-        return content;
-    }, []);
-
-    /**
-     * Handle manual template selection from gallery
-     */
-    const handleTemplateSelect = useCallback((template: DocumentTemplate) => {
+    const loadTemplate = useCallback((template: DocumentTemplate) => {
         setSelectedTemplate(template);
+        const fields = buildPlaceholderFields(template);
+        setActivePlaceholders(fields);
         const autoFilledValues = autoFillWithDID(template);
-        const content = renderContent(template, autoFilledValues);
-        setRenderedContent(content);
+        setPlaceholderValues(autoFilledValues);
         setViewMode("editor");
 
-        // Build auto-fill summary message
+        // Build auto-fill summary
         const didData = getDIDData();
         const filledFields: string[] = [];
         if (didData.name) filledFields.push(`Name: ${didData.name}`);
         if (didData.role) filledFields.push(`Role: ${didData.role}`);
-        if (didData.skills && didData.skills.length > 0) filledFields.push(`Skills: ${didData.skills.slice(0, 3).join(", ")}${didData.skills.length > 3 ? "..." : ""}`);
         if (selectedAccount?.address) filledFields.push(`Wallet: ${selectedAccount.address.slice(0, 8)}...${selectedAccount.address.slice(-6)}`);
 
         const autoFillSummary = filledFields.length > 0
             ? `\n\nAuto-filled from your DID:\n${filledFields.map(f => `- ${f}`).join("\n")}`
             : "";
 
-        // Add AI message about the selection
+        return autoFillSummary;
+    }, [autoFillWithDID, getDIDData, selectedAccount]);
+
+    /**
+     * Handle manual template selection from gallery
+     */
+    const handleTemplateSelect = useCallback((template: DocumentTemplate) => {
+        const autoFillSummary = loadTemplate(template);
+
         const assistantMessage: AIMessage = {
             id: Date.now().toString(),
             role: "assistant",
-            content: `I've loaded the "${template.name}" template for you.${autoFillSummary}\n\nThe document is ready in the editor. Would you like me to make any changes?`,
+            content: `I've loaded the "${template.name}" template for you.${autoFillSummary}\n\nThe document is ready in the editor. You can edit fields on the left, or tell me what to fill in via chat.\n\nFor example: "invoice number to 0001, bill to Acme Corp, total 500 USD"`,
             timestamp: new Date().toISOString(),
             isEncrypted: false,
         };
         setMessages((prev) => [...prev, assistantMessage]);
-    }, [autoFillWithDID, renderContent, getDIDData, selectedAccount]);
+    }, [loadTemplate]);
 
     /**
      * Find template by keyword matching
@@ -246,7 +228,6 @@ export default function DocuWriterPage() {
         const textLower = text.toLowerCase();
         const allTemplates = getAllTemplates();
 
-        // Direct keyword matches
         const keywordMap: Record<string, string[]> = {
             "nda-basic": ["nda", "non-disclosure", "confidential"],
             "freelance-agreement": ["freelance", "service agreement", "contractor", "freelancer"],
@@ -262,12 +243,145 @@ export default function DocuWriterPage() {
             }
         }
 
-        // Fallback: search by template name/description
         return allTemplates.find(
             (t) =>
                 t.name.toLowerCase().includes(textLower) ||
                 t.description.toLowerCase().includes(textLower)
         ) || null;
+    }, []);
+
+    /**
+     * Parse user chat input to extract field values for the active template.
+     * Uses a flexible approach: look for known placeholder labels / keys in the text
+     * and extract the value that follows them.
+     */
+    const parseUserInputForValues = useCallback((
+        text: string,
+        fields: PlaceholderField[]
+    ): Record<string, string> => {
+        const values: Record<string, string> = {};
+        const textLower = text.toLowerCase();
+
+        // Build alias map: multiple trigger phrases -> placeholder key
+        const aliasMap: { phrases: string[]; key: string }[] = fields.map((f) => {
+            const phrases = [
+                f.key.replace(/_/g, " "),
+                f.label.toLowerCase(),
+            ];
+            // Common aliases
+            const k = f.key.toLowerCase();
+            if (k.includes("client_name") || k === "party_b_name") phrases.push("bill to", "billed to", "client");
+            if (k.includes("client_address")) phrases.push("address is", "client address", "located at", "location");
+            if (k.includes("client_wallet")) phrases.push("client wallet", "their wallet", "receiver wallet");
+            if (k.includes("invoice_number")) phrases.push("invoice number", "inv number", "inv no", "invoice no");
+            if (k.includes("total") && !k.includes("sub")) phrases.push("total", "total due", "grand total");
+            if (k.includes("subtotal")) phrases.push("subtotal", "sub total");
+            if (k.includes("amount_1") || k === "amount_1") phrases.push("amount", "price", "cost", "for the amount");
+            if (k.includes("service_1") || k === "service_1") phrases.push("service", "for");
+            if (k.includes("tax_percent")) phrases.push("tax", "tax rate", "vat");
+            if (k.includes("tax_amount")) phrases.push("tax amount");
+            if (k.includes("sender_name")) phrases.push("from", "sender");
+            if (k.includes("due_date")) phrases.push("due date", "due on", "payment due");
+            if (k.includes("payment")) phrases.push("payment", "pay via", "pay using", "pay by", "payment method", "paid via", "paid using", "paid by");
+            return { phrases: [...new Set(phrases)], key: f.key };
+        });
+
+        // Strategy 1: Try structured extraction for known patterns
+        // Invoice number
+        const invMatch = text.match(/invoice\s*(?:number|no\.?|#)?\s*(?:to|is|:)?\s*([A-Za-z0-9\-]+)/i);
+        if (invMatch) {
+            const field = fields.find(f => f.key === "invoice_number");
+            if (field) values["invoice_number"] = invMatch[1].trim();
+        }
+
+        // "bill to" / "billed to" -> client_name
+        const billToMatch = text.match(/bill(?:ed)?\s+to\s+(.+?)(?:\s+address|\s+located|\s+wallet|\s+for\s+the|\s+and\s+the|,|$)/i);
+        if (billToMatch) {
+            const field = fields.find(f => f.key === "client_name" || f.key === "party_b_name");
+            if (field) values[field.key] = billToMatch[1].trim();
+        }
+
+        // Address extraction
+        const addrMatch = text.match(/address\s+(?:is|:)\s+(.+?)(?:\s+and\s+the|\s+wallet|\s+for\s+the|,\s*(?:wallet|for|and|the\s+wallet)|$)/i);
+        if (addrMatch) {
+            const field = fields.find(f => f.key === "client_address" || f.key === "party_b_address" || f.key === "sender_address");
+            if (field) values[field.key] = addrMatch[1].trim();
+        }
+
+        // Wallet extraction
+        const walletMatch = text.match(/(?:wallet|wallet\s+(?:is|address))\s+(?:is\s+)?([A-Za-z0-9]{10,})/i);
+        if (walletMatch) {
+            // If we already picked up a client_name, this is probably client_wallet
+            const field = fields.find(f => f.key === "client_wallet" || f.key === "party_b_wallet");
+            if (field) values[field.key] = walletMatch[1].trim();
+        }
+
+        // Amount / USD extraction
+        const amountMatch = text.match(/(?:amount\s+(?:of|is)?|for)\s+(?:the\s+)?(?:ai\s+development\s+)?(?:it'?s?\s+)?(\d[\d,.]*)\s*(?:usd|dollars?|\$|docu)?/i);
+        if (amountMatch) {
+            const amount = amountMatch[1].replace(/,/g, "");
+            // Fill service, amount, subtotal, total
+            const svc1 = fields.find(f => f.key === "service_1");
+            const amt1 = fields.find(f => f.key === "amount_1");
+            const subtotal = fields.find(f => f.key === "subtotal");
+            const total = fields.find(f => f.key === "total");
+            if (amt1) values[amt1.key] = amount;
+            if (subtotal) values[subtotal.key] = amount;
+            if (total) values[total.key] = amount;
+
+            // Try to extract service description from context
+            const svcMatch = text.match(/(?:for\s+(?:the\s+)?)([\w\s]+?)(?:\s+it'?s?\s+|\s+(?:to|is|amount|price|cost)\s+)/i);
+            if (svcMatch && svc1) {
+                values[svc1.key] = svcMatch[1].trim().replace(/^(?:the\s+)?/i, "").replace(/\b\w/g, c => c.toUpperCase());
+            }
+        }
+
+        // Simpler USD amount pattern "$100" or "100 usd"
+        if (!amountMatch) {
+            const simpleAmt = text.match(/\$\s*(\d[\d,.]*)|(\d[\d,.]*)\s*(?:usd|dollars?)/i);
+            if (simpleAmt) {
+                const amount = (simpleAmt[1] || simpleAmt[2]).replace(/,/g, "");
+                const amt1 = fields.find(f => f.key === "amount_1");
+                const subtotal = fields.find(f => f.key === "subtotal");
+                const total = fields.find(f => f.key === "total");
+                if (amt1) values[amt1.key] = amount;
+                if (subtotal) values[subtotal.key] = amount;
+                if (total) values[total.key] = amount;
+            }
+        }
+
+        // "without tax" / "no tax"
+        if (/without\s+tax|no\s+tax|tax\s*(?:free|exempt)/i.test(textLower)) {
+            const taxPct = fields.find(f => f.key === "tax_percent");
+            const taxAmt = fields.find(f => f.key === "tax_amount");
+            if (taxPct) values[taxPct.key] = "0";
+            if (taxAmt) values[taxAmt.key] = "0";
+        }
+
+        // Tax rate extraction
+        const taxMatch = text.match(/tax\s+(?:rate\s+)?(?:is\s+|of\s+|at\s+)?(\d+)\s*%/i);
+        if (taxMatch) {
+            const taxPct = fields.find(f => f.key === "tax_percent");
+            if (taxPct) values[taxPct.key] = taxMatch[1];
+        }
+
+        // Payment method
+        const payMatch = text.match(/(?:payment|pay(?:ment)?)\s+(?:will\s+be\s+)?(?:using|via|by|through|method\s+is?)\s+(?:a\s+)?(.+?)(?:\.|,|$)/i);
+        if (payMatch) {
+            // Store in notes or a custom field; for the invoice template it's informational
+            // We can't add arbitrary fields, but we can mention it in the AI response
+        }
+
+        // Service description from "ai development" or "for X"
+        const svcDescMatch = text.match(/(?:for\s+(?:the\s+)?)((?:ai|web|app|mobile|software|design|consulting|development|marketing)[\w\s]*?)(?:\s+(?:it'?s?|to|amount|price|is)\s+|\s*,|\s*$)/i);
+        if (svcDescMatch) {
+            const svc1 = fields.find(f => f.key === "service_1");
+            if (svc1 && !values[svc1.key]) {
+                values[svc1.key] = svcDescMatch[1].trim().replace(/\b\w/g, c => c.toUpperCase());
+            }
+        }
+
+        return values;
     }, []);
 
     /**
@@ -290,59 +404,73 @@ export default function DocuWriterPage() {
         setIsLoading(true);
 
         try {
-            // Check if user is asking for a specific template
-            const matchedTemplate = findTemplateByKeyword(userInput);
+            // If a template is already loaded, try to parse field updates from the message
+            if (selectedTemplate && viewMode === "editor") {
+                const parsed = parseUserInputForValues(userInput, activePlaceholders);
+                const parsedKeys = Object.keys(parsed);
 
-            if (matchedTemplate) {
-                // Auto-load the matched template
-                setSelectedTemplate(matchedTemplate);
-                setIsGenerating(true);
+                if (parsedKeys.length > 0) {
+                    setPlaceholderValues((prev) => ({ ...prev, ...parsed }));
 
-                const autoFilledValues = autoFillWithDID(matchedTemplate);
-                const content = renderContent(matchedTemplate, autoFilledValues);
+                    const fieldSummary = parsedKeys.map(k => {
+                        const field = activePlaceholders.find(f => f.key === k);
+                        return `- **${field?.label || k}**: ${parsed[k]}`;
+                    }).join("\n");
 
-                // Simulate a brief processing delay for UX
-                await new Promise((resolve) => setTimeout(resolve, 800));
-
-                setRenderedContent(content);
-                setViewMode("editor");
-                setIsGenerating(false);
-
-                // Build detailed auto-fill summary
-                const didData = getDIDData();
-                const filledFields: string[] = [];
-                if (didData.name) filledFields.push(`Name: ${didData.name}`);
-                if (didData.role) filledFields.push(`Role: ${didData.role}`);
-                if (didData.skills && didData.skills.length > 0) filledFields.push(`Skills: ${didData.skills.slice(0, 3).join(", ")}${didData.skills.length > 3 ? "..." : ""}`);
-                if (didData.bio) filledFields.push(`Bio: ${didData.bio.slice(0, 50)}${didData.bio.length > 50 ? "..." : ""}`);
-                if (selectedAccount?.address) filledFields.push(`Wallet: ${selectedAccount.address.slice(0, 8)}...${selectedAccount.address.slice(-6)}`);
-
-                const autoFillSummary = filledFields.length > 0
-                    ? `\n\nAuto-filled from your DID profile:\n${filledFields.map(f => `- ${f}`).join("\n")}`
-                    : "\n\n(Set up your DID profile to enable auto-fill)";
-
-                const assistantMessage: AIMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: "assistant",
-                    content: `I found the perfect template for you: "${matchedTemplate.name}"!${autoFillSummary}\n\nThe document is now loaded in the editor. Would you like me to modify any sections?`,
-                    timestamp: new Date().toISOString(),
-                    isEncrypted: false,
-                };
-                setMessages((prev) => [...prev, assistantMessage]);
+                    const assistantMessage: AIMessage = {
+                        id: (Date.now() + 1).toString(),
+                        role: "assistant",
+                        content: `Updated the following fields:\n\n${fieldSummary}\n\nThe preview has been updated. Would you like to change anything else?`,
+                        timestamp: new Date().toISOString(),
+                        isEncrypted: false,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                } else {
+                    // Couldn't parse fields - try TEE for general help
+                    const response = await sendToTEE(userInput);
+                    const assistantMessage: AIMessage = {
+                        id: (Date.now() + 1).toString(),
+                        role: "assistant",
+                        content: response.success
+                            ? response.plainContent || "Response received."
+                            : response.error || "An error occurred.",
+                        timestamp: new Date().toISOString(),
+                        isEncrypted: false,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                }
             } else {
-                // No template match - use TEE for general AI response
-                const response = await sendToTEE(userInput);
+                // No template loaded yet - check if user wants a template
+                const matchedTemplate = findTemplateByKeyword(userInput);
 
-                const assistantMessage: AIMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: "assistant",
-                    content: response.success
-                        ? response.plainContent || "Response received."
-                        : response.error || "An error occurred.",
-                    timestamp: new Date().toISOString(),
-                    isEncrypted: false,
-                };
-                setMessages((prev) => [...prev, assistantMessage]);
+                if (matchedTemplate) {
+                    setIsGenerating(true);
+                    await new Promise((resolve) => setTimeout(resolve, 600));
+                    const autoFillSummary = loadTemplate(matchedTemplate);
+                    setIsGenerating(false);
+
+                    const assistantMessage: AIMessage = {
+                        id: (Date.now() + 1).toString(),
+                        role: "assistant",
+                        content: `I found the perfect template: "${matchedTemplate.name}"!${autoFillSummary}\n\nThe document is loaded. Edit the fields on the left or tell me what to fill in.\n\nExample: "invoice number 0001, bill to Acme Corp, total 500 USD"`,
+                        timestamp: new Date().toISOString(),
+                        isEncrypted: false,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                } else {
+                    // No template match - use TEE for general AI response
+                    const response = await sendToTEE(userInput);
+                    const assistantMessage: AIMessage = {
+                        id: (Date.now() + 1).toString(),
+                        role: "assistant",
+                        content: response.success
+                            ? response.plainContent || "Response received."
+                            : response.error || "An error occurred.",
+                        timestamp: new Date().toISOString(),
+                        isEncrypted: false,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                }
             }
         } catch {
             const errorMessage: AIMessage = {
@@ -359,12 +487,20 @@ export default function DocuWriterPage() {
     };
 
     /**
+     * Handle placeholder field change from the form
+     */
+    const handlePlaceholderChange = (key: string, value: string) => {
+        setPlaceholderValues((prev) => ({ ...prev, [key]: value }));
+    };
+
+    /**
      * Reset to gallery view
      */
     const handleBackToGallery = () => {
         setViewMode("gallery");
         setSelectedTemplate(null);
-        setRenderedContent("");
+        setPlaceholderValues({});
+        setActivePlaceholders([]);
     };
 
     const quickPrompts = [
@@ -458,52 +594,88 @@ export default function DocuWriterPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
-                {/* Main Panel (Gallery or Editor) - 80-85% on desktop, 100% on mobile */}
-                <div className="flex-1 lg:w-[82%] overflow-hidden">
-                    {viewMode === "gallery" ? (
-                        <div className="h-full overflow-y-auto pr-2">
-                            <TemplateGallery
-                                templates={getAllTemplates()}
-                                onSelect={handleTemplateSelect}
-                                showPrices={false}
-                            />
+                {viewMode === "gallery" ? (
+                    <>
+                        {/* Gallery - takes the main area */}
+                        <div className="flex-1 overflow-hidden">
+                            <div className="h-full overflow-y-auto pr-2">
+                                <TemplateGallery
+                                    templates={getAllTemplates()}
+                                    onSelect={handleTemplateSelect}
+                                    showPrices={false}
+                                />
+                            </div>
                         </div>
-                    ) : (
-                        <div className="h-full overflow-y-auto">
-                            <DocumentEditor
-                                content={renderedContent}
-                                title={selectedTemplate?.name}
-                                isLoading={isGenerating}
-                            />
-                        </div>
-                    )}
-                </div>
 
-                {/* AI Sidebar - Desktop (15-18% width) */}
-                <div className="hidden lg:flex w-[18%] min-w-[280px] max-w-[360px] flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
-                    <AIChatPanel
-                        messages={messages}
-                        input={input}
-                        setInput={setInput}
-                        isLoading={isLoading}
-                        onSend={handleSend}
-                        quickPrompts={quickPrompts}
-                        messagesEndRef={messagesEndRef}
-                    />
-                </div>
+                        {/* AI Sidebar - Desktop */}
+                        <div className="hidden lg:flex w-[18%] min-w-[280px] max-w-[360px] flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
+                            <AIChatPanel
+                                messages={messages}
+                                input={input}
+                                setInput={setInput}
+                                isLoading={isLoading}
+                                onSend={handleSend}
+                                quickPrompts={quickPrompts}
+                                messagesEndRef={messagesEndRef}
+                            />
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        {/* Editor mode: Fields | Preview | AI Chat side-by-side */}
+                        {/* Left: Placeholder Fields */}
+                        <div className="w-[280px] min-w-[250px] flex-shrink-0 flex flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
+                            <div className="px-4 py-3 border-b border-gray-700/50 flex-shrink-0">
+                                <h3 className="text-sm font-semibold text-white">Document Fields</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Edit values to update the preview</p>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                                {activePlaceholders.map((placeholder) => (
+                                    <PlaceholderInput
+                                        key={placeholder.key}
+                                        placeholder={placeholder}
+                                        value={placeholderValues[placeholder.key] || ""}
+                                        onChange={(value) => handlePlaceholderChange(placeholder.key, value)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Center: Live Document Preview */}
+                        <div className="flex-1 overflow-hidden">
+                            <div className="h-full overflow-y-auto">
+                                <DocumentEditor
+                                    content={renderedContent()}
+                                    title={selectedTemplate?.name}
+                                    isLoading={isGenerating}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Right: AI Chat Sidebar - Desktop */}
+                        <div className="hidden lg:flex w-[280px] min-w-[250px] max-w-[320px] flex-shrink-0 flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
+                            <AIChatPanel
+                                messages={messages}
+                                input={input}
+                                setInput={setInput}
+                                isLoading={isLoading}
+                                onSend={handleSend}
+                                quickPrompts={quickPrompts}
+                                messagesEndRef={messagesEndRef}
+                            />
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Mobile Chat Drawer */}
             {isMobileChatOpen && (
                 <div className="lg:hidden fixed inset-0 z-50">
-                    {/* Backdrop */}
                     <div
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                         onClick={() => setIsMobileChatOpen(false)}
                     />
-                    {/* Drawer */}
                     <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-gray-900 border-l border-gray-700/50 flex flex-col animate-slide-in-right">
-                        {/* Drawer Header */}
                         <div className="flex items-center justify-between p-4 border-b border-gray-700/50">
                             <h3 className="text-lg font-semibold text-white">AI Assistant</h3>
                             <button
@@ -515,7 +687,6 @@ export default function DocuWriterPage() {
                                 </svg>
                             </button>
                         </div>
-                        {/* Chat Content */}
                         <AIChatPanel
                             messages={messages}
                             input={input}
@@ -527,6 +698,63 @@ export default function DocuWriterPage() {
                         />
                     </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Placeholder Input Component
+ */
+function PlaceholderInput({
+    placeholder,
+    value,
+    onChange,
+}: {
+    placeholder: PlaceholderField;
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    const baseClasses =
+        "w-full px-2.5 py-1.5 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50 transition-colors text-xs";
+
+    return (
+        <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1">
+                {placeholder.label}
+                {placeholder.required && <span className="text-red-400 ml-0.5">*</span>}
+            </label>
+            {placeholder.type === "textarea" ? (
+                <textarea
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder.label}
+                    className={`${baseClasses} resize-none`}
+                    rows={2}
+                />
+            ) : placeholder.type === "date" ? (
+                <input
+                    type="date"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className={baseClasses}
+                />
+            ) : placeholder.type === "number" ? (
+                <input
+                    type="number"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder.label}
+                    className={baseClasses}
+                />
+            ) : (
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder.label}
+                    className={`${baseClasses} ${placeholder.type === "address" ? "font-mono" : ""}`}
+                />
             )}
         </div>
     );
@@ -568,7 +796,7 @@ function AIChatPanel({
                         </div>
                         <h3 className="text-white font-medium text-sm mb-1">Ask me anything</h3>
                         <p className="text-gray-500 text-xs mb-4">
-                            I can help you find templates and create documents.
+                            I can help you find templates and fill in document details.
                         </p>
                         <div className="flex flex-col gap-2 w-full">
                             {quickPrompts.map((prompt) => (
