@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
                 category,
                 content: content || "",
                 price: typeof price === "string" ? parseFloat(price) : price,
-                placeholders: placeholders || [],
+                placeholders: JSON.stringify(placeholders || []),
                 creatorId: creator.id,
                 ipfsCid: cid,
                 royaltyPercent: royaltyPercent || 10,

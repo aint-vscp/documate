@@ -10,7 +10,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSelectedAccount } from "@/hooks/useWallet";
+import { useEVMAccount } from "@/hooks/useEVMWallet";
 
 type VerificationStatus = "PENDING" | "IN_REVIEW" | "APPROVED" | "REJECTED";
 
@@ -87,7 +87,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function VerificationQueuePage() {
-    const selectedAccount = useSelectedAccount();
+    const account = useEVMAccount();
     const [requests, setRequests] = useState<VerificationRequest[]>(MOCK_REQUESTS);
     const [selectedRequest, setSelectedRequest] = useState<VerificationRequest | null>(null);
     const [filterStatus, setFilterStatus] = useState<VerificationStatus | "ALL">("ALL");
@@ -151,7 +151,7 @@ export default function VerificationQueuePage() {
                 body: JSON.stringify({
                     verificationId: selectedRequest.id,
                     action: "approve",
-                    reviewerAddress: selectedAccount?.address || "",
+                    reviewerAddress: account || "",
                 }),
             });
             const data = await response.json();
@@ -184,7 +184,7 @@ export default function VerificationQueuePage() {
                     verificationId: selectedRequest.id,
                     action: "reject",
                     feedback,
-                    reviewerAddress: selectedAccount?.address || "",
+                    reviewerAddress: account || "",
                 }),
             });
             const data = await response.json();

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         const price = template.price;
         const creatorAmount = (price * REVENUE_SPLIT.CREATOR) / 100;
         const companyAmount = (price * REVENUE_SPLIT.COMPANY) / 100;
-        const burnAmount = (price * REVENUE_SPLIT.BURN) / 100;
+        const stakingAmount = (price * REVENUE_SPLIT.STAKING) / 100;
 
         // Create purchase record and ownership in a transaction
         const [purchase] = await prisma.$transaction([
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
                     price,
                     creatorAmount,
                     companyAmount,
-                    burnAmount,
+                    burnAmount: stakingAmount,
                     txHash: txHash || null,
                     status: "COMPLETED",
                 },
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
                 split: {
                     creator: creatorAmount,
                     company: companyAmount,
-                    burn: burnAmount,
+                    staking: stakingAmount,
                 },
             },
         });

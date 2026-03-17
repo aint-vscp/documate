@@ -1,42 +1,40 @@
 /**
  * WalletConnect Component
- * Handles wallet connection UI for Polkadot wallets
+ * Handles wallet connection UI for MetaMask / Polkadot Hub EVM
  */
 "use client";
 
 import { useState } from "react";
-import { useWallet, useSelectedAccount, useIsWalletConnected } from "@/hooks/useWallet";
+import { useEVMWallet, useEVMAccount, useIsEVMConnected, useEVMChainId } from "@/hooks/useEVMWallet";
+import { POLKADOT_HUB_TESTNET } from "@/config/DocuMateABI";
 
 export function WalletConnect() {
     const [isOpen, setIsOpen] = useState(false);
-    const { connect, disconnect, accounts, selectAccount, isConnecting, error } =
-        useWallet();
-    const selectedAccount = useSelectedAccount();
-    const isConnected = useIsWalletConnected();
+    const { connectMetaMask, disconnect, isConnecting, error } = useEVMWallet();
+    const account = useEVMAccount();
+    const isConnected = useIsEVMConnected();
+    const chainId = useEVMChainId();
 
-    const handleConnect = async () => {
-        try {
-            await connect();
-        } catch {
-            // Error is already set in store
-        }
-    };
+    const isCorrectChain = chainId === POLKADOT_HUB_TESTNET.chainId;
 
     const truncateAddress = (address: string) => {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     };
 
-    if (isConnected && selectedAccount) {
+    if (isConnected && account) {
         return (
             <div className="relative">
                 <button
                     onClick={() => setIsOpen(!isOpen)}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${isCorrectChain ? "bg-green-400" : "bg-yellow-400"}`} />
                     <span className="font-medium">
-                        {selectedAccount.meta.name || truncateAddress(selectedAccount.address)}
+                        {truncateAddress(account)}
                     </span>
+                    {!isCorrectChain && (
+                        <span className="text-xs text-yellow-300">(Wrong Network)</span>
+                    )}
                     <svg
                         className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
                         fill="none"
@@ -57,34 +55,12 @@ export function WalletConnect() {
                         <div className="p-4 border-b border-gray-700">
                             <p className="text-gray-400 text-sm">Connected Account</p>
                             <p className="text-white font-mono text-sm mt-1 break-all">
-                                {selectedAccount.address}
+                                {account}
+                            </p>
+                            <p className={`text-xs mt-2 ${isCorrectChain ? "text-green-400" : "text-yellow-400"}`}>
+                                {isCorrectChain ? "Polkadot Hub Testnet" : "Wrong Network - Please switch"}
                             </p>
                         </div>
-
-                        {accounts.length > 1 && (
-                            <div className="p-2 border-b border-gray-700">
-                                <p className="text-gray-400 text-xs px-2 py-1">Switch Account</p>
-                                {accounts
-                                    .filter((acc) => acc.address !== selectedAccount.address)
-                                    .map((acc) => (
-                                        <button
-                                            key={acc.address}
-                                            onClick={() => {
-                                                selectAccount(acc);
-                                                setIsOpen(false);
-                                            }}
-                                            className="w-full text-left px-2 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
-                                        >
-                                            <span className="font-medium">
-                                                {acc.meta.name || "Account"}
-                                            </span>
-                                            <span className="text-gray-500 text-sm ml-2">
-                                                {truncateAddress(acc.address)}
-                                            </span>
-                                        </button>
-                                    ))}
-                            </div>
-                        )}
 
                         <div className="p-2">
                             <button
@@ -106,7 +82,7 @@ export function WalletConnect() {
     return (
         <div className="flex flex-col items-end gap-2">
             <button
-                onClick={handleConnect}
+                onClick={connectMetaMask}
                 disabled={isConnecting}
                 className="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
@@ -134,7 +110,7 @@ export function WalletConnect() {
                         Connecting...
                     </span>
                 ) : (
-                    "Connect Wallet"
+                    "Connect MetaMask"
                 )}
             </button>
 

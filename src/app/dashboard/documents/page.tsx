@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useWallet } from "@/hooks/useWallet";
+import { useEVMWallet } from "@/hooks/useEVMWallet";
 import { getAllDocuments, getDocumentStats } from "@/lib/document";
 import type { DocumentInstance, DocumentStatus } from "@/types";
 
@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<DocumentStatus, string> = {
 type FilterType = "all" | "sent" | "received" | DocumentStatus;
 
 export default function DocumentsPage() {
-    const { selectedAccount } = useWallet();
+    const account = useEVMWallet((s) => s.account);
     const [documents, setDocuments] = useState<DocumentInstance[]>([]);
     const [filter, setFilter] = useState<FilterType>("all");
     const [stats, setStats] = useState({
@@ -48,17 +48,17 @@ export default function DocumentsPage() {
         setDocuments(allDocs);
 
         // Load stats
-        if (selectedAccount?.address) {
-            setStats(getDocumentStats(selectedAccount.address));
+        if (account) {
+            setStats(getDocumentStats(account));
         }
-    }, [selectedAccount?.address]);
+    }, [account]);
 
     const filteredDocuments = documents.filter((doc) => {
-        if (!selectedAccount?.address) return false;
+        if (!account) return false;
 
         const isUserDoc =
-            doc.sender === selectedAccount.address ||
-            doc.receiver === selectedAccount.address;
+            doc.sender === account ||
+            doc.receiver === account;
 
         if (!isUserDoc) return false;
 
@@ -66,15 +66,15 @@ export default function DocumentsPage() {
             case "all":
                 return true;
             case "sent":
-                return doc.sender === selectedAccount.address;
+                return doc.sender === account;
             case "received":
-                return doc.receiver === selectedAccount.address;
+                return doc.receiver === account;
             default:
                 return doc.status === filter;
         }
     });
 
-    if (!selectedAccount) {
+    if (!account) {
         return (
             <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
@@ -96,7 +96,7 @@ export default function DocumentsPage() {
                     Connect Your Wallet
                 </h2>
                 <p className="text-gray-400 text-center max-w-md">
-                    Connect your Polkadot wallet to view and manage your documents.
+                    Connect your MetaMask wallet to view and manage your documents.
                 </p>
             </div>
         );
@@ -216,7 +216,7 @@ export default function DocumentsPage() {
                         <DocumentCard
                             key={doc.id}
                             document={doc}
-                            currentUserAddress={selectedAccount.address}
+                            currentUserAddress={account}
                         />
                     ))}
                 </div>

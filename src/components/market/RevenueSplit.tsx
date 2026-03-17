@@ -7,7 +7,7 @@
  * THE IRON RULES (Hard-coded, matches smart contract):
  * - 75% → Creator
  * - 20% → DocuMate Treasury
- * - 5%  → Burn (Deflationary)
+ * - 5%  → Community Staking
  */
 
 import { useState, useMemo } from "react";
@@ -19,7 +19,7 @@ import { useState, useMemo } from "react";
 const REVENUE_SPLIT = {
     CREATOR: 75,
     COMPANY: 20,
-    BURN: 5,
+    STAKING: 5,
 } as const;
 
 // ============================================================
@@ -40,7 +40,7 @@ interface RevenueSplitProps {
 interface SplitBreakdown {
     creator: number;
     company: number;
-    burn: number;
+    staking: number;
 }
 
 // ============================================================
@@ -59,8 +59,8 @@ export function RevenueSplit({
     const split = useMemo((): SplitBreakdown => {
         const creator = (price * REVENUE_SPLIT.CREATOR) / 100;
         const company = (price * REVENUE_SPLIT.COMPANY) / 100;
-        const burn = price - creator - company; // Remainder to ensure total matches
-        return { creator, company, burn };
+        const staking = price - creator - company; // Remainder to ensure total matches
+        return { creator, company, staking };
     }, [price]);
 
     // Compact version (inline display)
@@ -101,8 +101,8 @@ export function RevenueSplit({
                     />
                     <div
                         className="bg-gradient-to-r from-orange-400 to-red-500"
-                        style={{ width: `${REVENUE_SPLIT.BURN}%` }}
-                        title={`Burn: ${REVENUE_SPLIT.BURN}%`}
+                        style={{ width: `${REVENUE_SPLIT.STAKING}%` }}
+                        title={`Staking: ${REVENUE_SPLIT.STAKING}%`}
                     />
                 </div>
 
@@ -132,15 +132,15 @@ export function RevenueSplit({
                         </span>
                     </div>
 
-                    {/* Burn Share */}
+                    {/* Staking Share */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-400 to-red-500" />
-                            <span className="text-sm text-gray-300">Token Burn</span>
-                            <span className="text-xs text-gray-500">({REVENUE_SPLIT.BURN}%)</span>
+                            <span className="text-sm text-gray-300">Token Staking</span>
+                            <span className="text-xs text-gray-500">({REVENUE_SPLIT.STAKING}%)</span>
                         </div>
                         <span className="font-medium text-orange-400">
-                            {split.burn.toFixed(2)} $DOCU
+                            {split.staking.toFixed(2)} $DOCU
                         </span>
                     </div>
                 </div>
@@ -194,8 +194,8 @@ export function RevenueSplit({
                         <span className="text-gray-400">-{split.company.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Token Burn ({REVENUE_SPLIT.BURN}%)</span>
-                        <span className="text-orange-400">-{split.burn.toFixed(2)}</span>
+                        <span className="text-gray-400">Token Staking ({REVENUE_SPLIT.STAKING}%)</span>
+                        <span className="text-orange-400">-{split.staking.toFixed(2)}</span>
                     </div>
                     <div className="pt-2 border-t border-gray-700/30 flex justify-between">
                         <span className="text-gray-300 font-medium">Net Earnings ({REVENUE_SPLIT.CREATOR}%)</span>

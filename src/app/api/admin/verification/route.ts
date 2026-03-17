@@ -71,13 +71,22 @@ export async function POST(request: NextRequest) {
 
         const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
 
+        // Look up reviewer by wallet address to get user ID
+        let reviewerId: string | null = null;
+        if (reviewerAddress) {
+            const reviewer = await prisma.user.findUnique({
+                where: { walletAddress: reviewerAddress },
+            });
+            reviewerId = reviewer?.id || null;
+        }
+
         const updated = await prisma.templateVerification.update({
             where: { id: verificationId },
             data: {
                 status: newStatus,
                 feedback: feedback || null,
                 reviewedAt: new Date(),
-                reviewerId: reviewerAddress || null,
+                reviewerId,
             },
         });
 

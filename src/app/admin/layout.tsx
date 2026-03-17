@@ -8,12 +8,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useIsWalletConnected, useSelectedAccount } from "@/hooks/useWallet";
+import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
 import { WalletConnect } from "@/components/chain";
 
 // Admin addresses - In production, fetch from database
 const ADMIN_ADDRESSES = [
-    "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY", // Alice (dev)
+    "0xA800416b8D59eeb320E0f2D374B5C55895345f15", // Deployer (testnet)
     // Add more admin addresses
 ];
 
@@ -85,8 +85,8 @@ interface AdminStats {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const isConnected = useIsWalletConnected();
-    const selectedAccount = useSelectedAccount();
+    const isConnected = useIsEVMConnected();
+    const account = useEVMAccount();
     const [isAdmin, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [stats, setStats] = useState<AdminStats>({
@@ -98,8 +98,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     // Check admin status
     useEffect(() => {
-        if (selectedAccount?.address) {
-            const adminCheck = ADMIN_ADDRESSES.includes(selectedAccount.address);
+        if (account) {
+            const adminCheck = ADMIN_ADDRESSES.includes(account);
             setIsAdmin(adminCheck);
             setIsLoading(false);
 
@@ -111,7 +111,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             setIsAdmin(false);
             setIsLoading(false);
         }
-    }, [selectedAccount?.address]);
+    }, [account]);
 
     const fetchStats = async () => {
         try {
@@ -170,7 +170,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         Your wallet is not authorized for admin access.
                     </p>
                     <p className="text-gray-500 text-sm font-mono break-all">
-                        {selectedAccount?.address}
+                        {account}
                     </p>
                     <Link
                         href="/dashboard"

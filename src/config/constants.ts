@@ -13,12 +13,12 @@ export const REVENUE_SPLIT = {
     CREATOR: 75,
     /** DocuMate Treasury receives 20% of every sale */
     COMPANY: 20,
-    /** Burned for deflation - 5% of every sale */
-    BURN: 5,
+    /** Community staking - 5% of every sale */
+    STAKING: 5,
 } as const;
 
 // Verify split adds up to 100%
-const SPLIT_TOTAL = REVENUE_SPLIT.CREATOR + REVENUE_SPLIT.COMPANY + REVENUE_SPLIT.BURN;
+const SPLIT_TOTAL = REVENUE_SPLIT.CREATOR + REVENUE_SPLIT.COMPANY + REVENUE_SPLIT.STAKING;
 if (SPLIT_TOTAL !== 100) {
     throw new Error(`Revenue split must equal 100%, got ${SPLIT_TOTAL}%`);
 }

@@ -5,14 +5,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { DidBadge, CVCards } from "@/components/chain";
-import { useSelectedAccount, useIsWalletConnected } from "@/hooks/useWallet";
+import { DidBadge } from "@/components/chain";
+import { useEVMAccount, useIsEVMConnected } from "@/hooks/useEVMWallet";
+import { useDocuMateContract } from "@/hooks/useDocuMateContract";
+import { useStakingContract } from "@/hooks/useStakingContract";
 import {
     loadUserProfile,
     createUserProfile,
     type UserProfile,
 } from "@/lib/polkadot/kilt";
-import type { ReputationProfile, ProfessionalIdentityClaim } from "@/types";
+import type { ProfessionalIdentityClaim } from "@/types";
 
 const BREACH_REASONS = [
     { value: "NON_DELIVERY", label: "Non-Delivery", desc: "Work or deliverable was never received" },
@@ -24,16 +26,24 @@ const BREACH_REASONS = [
 ] as const;
 
 export default function ProfilePage() {
-    const selectedAccount = useSelectedAccount();
-    const isConnected = useIsWalletConnected();
+    const account = useEVMAccount();
+    const isConnected = useIsEVMConnected();
+    const { checkVerified, verifyDID, getPlatformStats } = useDocuMateContract();
+    const { stakeReputation, unstake, getStakeInfo, getPoolStats } = useStakingContract();
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [reputation, setReputation] = useState<ReputationProfile | null>(null);
     const [isLoadingReputation, setIsLoadingReputation] = useState(false);
     const [isCreatingDid, setIsCreatingDid] = useState(false);
     const [showClaimForm, setShowClaimForm] = useState(false);
     const [showBreachModal, setShowBreachModal] = useState(false);
     const [isSubmittingBreach, setIsSubmittingBreach] = useState(false);
     const [breachSuccess, setBreachSuccess] = useState(false);
+    const [evmVerified, setEvmVerified] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [platformStats, setPlatformStats] = useState<{ totalDocuments: number; totalTransactions: number; totalVolume: string } | null>(null);
+    const [stakeInfo, setStakeInfo] = useState<{ staked: boolean; amount: string; since: number } | null>(null);
+    const [poolStats, setPoolStats] = useState<{ totalStaked: string; totalSlashed: string; poolBalance: string; stakerCount: number } | null>(null);
+    const [isStaking, setIsStaking] = useState(false);
+    const [isUnstaking, setIsUnstaking] = useState(false);
 
     // Breach form state
     const [breachForm, setBreachForm] = useState({
@@ -61,27 +71,83 @@ export default function ProfilePage() {
         }
     }, []);
 
-    // Fetch reputation when account changes
-    useEffect(() => {
-        if (selectedAccount?.address) {
-            fetchReputation(selectedAccount.address);
-        }
-    }, [selectedAccount?.address]);
-
-    const fetchReputation = async (address: string) => {
+    const fetchOnChainStats = useCallback(async () => {
         setIsLoadingReputation(true);
         try {
-            const res = await fetch(
-                `/api/reputation/${address}?network=westend-asset-hub&blocks=5000`
-            );
-            const data = await res.json();
-            if (data.success) {
-                setReputation(data.data);
-            }
+            const stats = await getPlatformStats();
+            if (stats) setPlatformStats(stats);
         } catch (error) {
-            console.error("Failed to fetch reputation:", error);
+            console.error("Failed to fetch on-chain stats:", error);
         } finally {
             setIsLoadingReputation(false);
+        }
+    }, [getPlatformStats]);
+
+    // Fetch on-chain status when account changes
+    useEffect(() => {
+        if (account) {
+            checkVerified(account).then(setEvmVerified);
+            fetchOnChainStats();
+            // Fetch staking info
+            getStakeInfo(account).then((info) => { if (info) setStakeInfo(info); });
+            getPoolStats().then((stats) => { if (stats) setPoolStats(stats); });
+        }
+    }, [account, checkVerified, fetchOnChainStats, getStakeInfo, getPoolStats]);
+
+    const handleVerifyOnChain = async () => {
+        if (!account) return;
+        setIsVerifying(true);
+        try {
+            await verifyDID(account);
+            setEvmVerified(true);
+        } catch (error) {
+            console.error("On-chain verification failed:", error);
+            alert("Verification failed. Only the contract owner can verify addresses.");
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handleStake = async () => {
+        if (!account) return;
+        setIsStaking(true);
+        try {
+            const current = await getStakeInfo(account);
+            if (current?.staked) {
+                alert("You already have an active 50 PAS stake. Use Withdraw after the lock period.");
+                return;
+            }
+
+            await stakeReputation();
+            const info = await getStakeInfo(account);
+            if (info) setStakeInfo(info);
+            const stats = await getPoolStats();
+            if (stats) setPoolStats(stats);
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : "Staking failed";
+            alert(msg.includes("user rejected") ? "Transaction cancelled." : msg);
+        } finally {
+            setIsStaking(false);
+        }
+    };
+
+    const handleUnstake = async () => {
+        if (!account) return;
+        setIsUnstaking(true);
+        try {
+            await unstake();
+            setStakeInfo({ staked: false, amount: "0", since: 0 });
+            const stats = await getPoolStats();
+            if (stats) setPoolStats(stats);
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : "Unstaking failed";
+            if (msg.includes("StakeLocked")) {
+                alert("Stake is locked. You must wait 7 days before unstaking.");
+            } else {
+                alert(msg.includes("user rejected") ? "Transaction cancelled." : msg);
+            }
+        } finally {
+            setIsUnstaking(false);
         }
     };
 
@@ -118,8 +184,8 @@ export default function ProfilePage() {
     };
 
     const handleSubmitBreach = useCallback(async () => {
-        if (!selectedAccount?.address || !breachForm.targetAddress || !breachForm.reason) return;
-        if (breachForm.targetAddress === selectedAccount.address) {
+        if (!account || !breachForm.targetAddress || !breachForm.reason) return;
+        if (breachForm.targetAddress === account) {
             alert("You cannot report yourself.");
             return;
         }
@@ -131,7 +197,7 @@ export default function ProfilePage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    reporterAddress: selectedAccount.address,
+                    reporterAddress: account,
                     targetAddress: breachForm.targetAddress,
                     reason: breachForm.reason,
                     description: breachForm.description || undefined,
@@ -156,7 +222,7 @@ export default function ProfilePage() {
         } finally {
             setIsSubmittingBreach(false);
         }
-    }, [selectedAccount?.address, breachForm]);
+    }, [account, breachForm]);
 
     if (!isConnected) {
         return (
@@ -180,7 +246,7 @@ export default function ProfilePage() {
                     Connect Your Wallet
                 </h2>
                 <p className="text-gray-400 max-w-md">
-                    Connect a Polkadot wallet to access your decentralized identity and
+                    Connect MetaMask to access your decentralized identity and
                     reputation profile.
                 </p>
             </div>
@@ -367,36 +433,68 @@ export default function ProfilePage() {
                 )}
             </section>
 
-            {/* Wallet Address */}
+            {/* On-Chain Verification */}
+            <section className="bg-gray-800/30 border border-gray-700/50 rounded-2xl p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">
+                    On-Chain Verification (Polkadot Hub)
+                </h2>
+                <div className="bg-gray-800/50 rounded-xl p-4">
+                    {evmVerified ? (
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-emerald-400 font-medium">Verified on Polkadot Hub</p>
+                                <p className="text-gray-500 text-sm">Your address is verified on the DocuMate smart contract</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-yellow-400 font-medium">Not yet verified on-chain</p>
+                                <p className="text-gray-500 text-sm">Verify your DID on the Polkadot Hub EVM contract</p>
+                            </div>
+                            <button
+                                onClick={handleVerifyOnChain}
+                                disabled={isVerifying}
+                                className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                            >
+                                {isVerifying ? "Verifying..." : "Verify DID"}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* Connected Wallet */}
             <section className="bg-gray-800/30 border border-gray-700/50 rounded-2xl p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">
                     Connected Wallet
                 </h2>
                 <div className="bg-gray-800/50 rounded-xl p-4">
-                    <p className="text-gray-400 text-sm mb-1">
-                        {selectedAccount?.meta.name || "Account"}
-                    </p>
+                    <p className="text-gray-400 text-sm mb-1">MetaMask Account</p>
                     <code className="text-white text-sm break-all">
-                        {selectedAccount?.address}
+                        {account}
                     </code>
                 </div>
             </section>
 
-            {/* Reputation Section */}
+            {/* On-Chain Activity */}
             <section>
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h2 className="text-xl font-semibold text-white">
-                            Proof of Contract CV
+                            On-Chain Activity
                         </h2>
                         <p className="text-gray-400 text-sm">
-                            Your verified on-chain reputation from POC-1 transactions
+                            Platform stats from the DocuMate smart contract
                         </p>
                     </div>
                     <button
-                        onClick={() =>
-                            selectedAccount && fetchReputation(selectedAccount.address)
-                        }
+                        onClick={fetchOnChainStats}
                         className="text-sm text-pink-400 hover:text-pink-300 transition-colors flex items-center gap-1"
                     >
                         <svg
@@ -415,7 +513,141 @@ export default function ProfilePage() {
                         Refresh
                     </button>
                 </div>
-                <CVCards profile={reputation} isLoading={isLoadingReputation} />
+                {isLoadingReputation ? (
+                    <div className="flex items-center justify-center py-12">
+                        <div className="w-8 h-8 border-2 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" />
+                    </div>
+                ) : platformStats ? (
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-4">
+                            <p className="text-2xl font-bold text-white">{platformStats.totalDocuments}</p>
+                            <p className="text-sm text-gray-400">Documents On-Chain</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-xl p-4">
+                            <p className="text-2xl font-bold text-white">{platformStats.totalTransactions}</p>
+                            <p className="text-sm text-gray-400">Transactions</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-pink-500/20 to-orange-500/20 border border-pink-500/30 rounded-xl p-4">
+                            <p className="text-2xl font-bold text-white">{platformStats.totalVolume} $DOCU</p>
+                            <p className="text-sm text-gray-400">Total Volume</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-gray-800/30 border border-gray-700/50 rounded-xl p-8 text-center">
+                        <p className="text-gray-500">No on-chain activity yet. Start by verifying your DID and uploading documents.</p>
+                    </div>
+                )}
+            </section>
+
+            {/* Reputation Staking */}
+            <section className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            Reputation Staking
+                        </h2>
+                        <p className="text-gray-400 text-sm mt-1">
+                            Lock 50 PAS to back your reputation. Slashed if a breach is confirmed against you.
+                        </p>
+                    </div>
+                </div>
+
+                {stakeInfo?.staked ? (
+                    <div className="space-y-4">
+                        <div className="bg-gray-800/50 rounded-xl p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className="text-emerald-400 font-medium">Reputation Staked</p>
+                                    <p className="text-gray-500 text-sm">{stakeInfo.amount} PAS locked</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div className="bg-gray-800/80 rounded-lg p-3">
+                                    <p className="text-gray-500">Staked Since</p>
+                                    <p className="text-white font-medium">
+                                        {stakeInfo.since > 0 ? new Date(stakeInfo.since * 1000).toLocaleDateString() : "—"}
+                                    </p>
+                                </div>
+                                <div className="bg-gray-800/80 rounded-lg p-3">
+                                    <p className="text-gray-500">Unlock Date</p>
+                                    <p className="text-white font-medium">
+                                        {stakeInfo.since > 0 ? new Date((stakeInfo.since + 7 * 86400) * 1000).toLocaleDateString() : "—"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleUnstake}
+                            disabled={isUnstaking}
+                            className="w-full py-3 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                            {isUnstaking ? "Unstaking..." : "Withdraw Stake"}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-sm">
+                                <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-gray-400">Stake <span className="text-white font-semibold">50 PAS</span> to show you stand behind your work</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                                <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-gray-400">7-day minimum lock period</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                                <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <span className="text-gray-400">Stake is <span className="text-red-400 font-semibold">slashed</span> if a breach is confirmed against you</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleStake}
+                            disabled={isStaking}
+                            className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:opacity-90 transition-opacity font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isStaking ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Staking...
+                                </>
+                            ) : (
+                                "Stake 50 PAS"
+                            )}
+                        </button>
+                    </div>
+                )}
+
+                {/* Pool Stats */}
+                {poolStats && (
+                    <div className="mt-4 pt-4 border-t border-gray-700/30 grid grid-cols-3 gap-3 text-center text-sm">
+                        <div>
+                            <p className="text-white font-semibold">{poolStats.totalStaked} PAS</p>
+                            <p className="text-gray-500">Total Staked</p>
+                        </div>
+                        <div>
+                            <p className="text-red-400 font-semibold">{poolStats.totalSlashed} PAS</p>
+                            <p className="text-gray-500">Total Slashed</p>
+                        </div>
+                        <div>
+                            <p className="text-white font-semibold">{poolStats.stakerCount}</p>
+                            <p className="text-gray-500">Active Stakers</p>
+                        </div>
+                    </div>
+                )}
             </section>
 
             {/* Report Breach Section */}
@@ -475,7 +707,7 @@ export default function ProfilePage() {
                                             value={breachForm.targetAddress}
                                             onChange={(e) => setBreachForm({ ...breachForm, targetAddress: e.target.value })}
                                             className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors font-mono text-sm"
-                                            placeholder="5Grw..."
+                                            placeholder="0x..."
                                         />
                                     </div>
 

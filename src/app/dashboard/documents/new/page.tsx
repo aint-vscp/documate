@@ -8,7 +8,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useWallet } from "@/hooks/useWallet";
+import { useEVMWallet } from "@/hooks/useEVMWallet";
 import { TemplateGallery } from "@/components/document/TemplateGallery";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
 import {
@@ -23,7 +23,7 @@ type Step = "select" | "fill" | "preview";
 
 export default function NewDocumentPage() {
     const router = useRouter();
-    const { selectedAccount } = useWallet();
+    const account = useEVMWallet((s) => s.account);
     const [step, setStep] = useState<Step>("select");
     const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
     const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
@@ -103,13 +103,13 @@ export default function NewDocumentPage() {
     };
 
     const handleCreate = async () => {
-        if (!selectedTemplate || !selectedAccount?.address) return;
+        if (!selectedTemplate || !account) return;
 
         // Create document instance
         const doc = createDocument({
             templateId: selectedTemplate.id,
             templateName: selectedTemplate.name,
-            sender: selectedAccount.address,
+            sender: account,
             receiver: receiverAddress,
             content: renderedContent,
             placeholderValues,
@@ -119,7 +119,7 @@ export default function NewDocumentPage() {
         router.push(`/dashboard/documents/${doc.id}`);
     };
 
-    if (!selectedAccount) {
+    if (!account) {
         return (
             <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
@@ -141,7 +141,7 @@ export default function NewDocumentPage() {
                     Connect Your Wallet
                 </h2>
                 <p className="text-gray-400 text-center max-w-md">
-                    Connect your Polkadot wallet to create documents.
+                    Connect your MetaMask wallet to create documents.
                 </p>
             </div>
         );
@@ -176,17 +176,26 @@ export default function NewDocumentPage() {
 
                 {/* Step Indicator */}
                 <div className="flex items-center gap-2">
-                    {(["select", "fill", "preview"] as const).map((s, i) => (
+                    {(["select", "fill", "preview"] as const).map((s, i) => {
+                        const stepOrder = { select: 0, fill: 1, preview: 2 } as const;
+                        const isPast = stepOrder[s] < stepOrder[step];
+                        return (
                         <React.Fragment key={s}>
                             <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === s
                                         ? "bg-purple-600 text-white"
-                                        : s < step || (step === "preview" && s === "fill")
+                                        : isPast
                                             ? "bg-green-600 text-white"
                                             : "bg-gray-700 text-gray-400"
                                     }`}
                             >
-                                {i + 1}
+                                {isPast ? (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                ) : (
+                                    i + 1
+                                )}
                             </div>
                             {i < 2 && (
                                 <div
@@ -198,7 +207,8 @@ export default function NewDocumentPage() {
                                 />
                             )}
                         </React.Fragment>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -260,7 +270,7 @@ export default function NewDocumentPage() {
                                 type="text"
                                 value={receiverAddress}
                                 onChange={(e) => setReceiverAddress(e.target.value)}
-                                placeholder="5G..."
+                                placeholder="0x..."
                                 className="w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors font-mono text-sm"
                             />
                             <p className="text-xs text-gray-500 mt-2">

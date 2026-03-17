@@ -4,9 +4,10 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useIsWalletConnected, useSelectedAccount } from "@/hooks/useWallet";
+import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
+import { useDocuMateContract } from "@/hooks/useDocuMateContract";
 import type { TemplateCategory } from "@/types";
 
 interface MarketTemplate {
@@ -41,7 +42,7 @@ const FALLBACK_TEMPLATES: MarketTemplate[] = [
         ipfsCid: "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco",
         isVerified: true,
         salesCount: 14,
-        creator: { walletAddress: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY" },
+        creator: { walletAddress: "0xA800416b8D59eeb320E0f2D374B5C55895345f15" },
     },
     {
         id: "fallback-2",
@@ -54,7 +55,7 @@ const FALLBACK_TEMPLATES: MarketTemplate[] = [
         ipfsCid: "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
         isVerified: true,
         salesCount: 8,
-        creator: { walletAddress: "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty" },
+        creator: { walletAddress: "0x1234567890abcdef1234567890abcdef12345678" },
     },
     {
         id: "fallback-3",
@@ -67,7 +68,7 @@ const FALLBACK_TEMPLATES: MarketTemplate[] = [
         ipfsCid: "QmZTR5bcpQD7cFgTorqxZDYaew1Wqgfbd2ud9QqGPAkK2V",
         isVerified: false,
         salesCount: 22,
-        creator: { walletAddress: "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy" },
+        creator: { walletAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" },
     },
     {
         id: "fallback-4",
@@ -80,7 +81,7 @@ const FALLBACK_TEMPLATES: MarketTemplate[] = [
         ipfsCid: "QmNrgEMcUygbKzZeZgYFosdd27VE9KnWbyUD73bKZJ3bGi",
         isVerified: true,
         salesCount: 5,
-        creator: { walletAddress: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY" },
+        creator: { walletAddress: "0xA800416b8D59eeb320E0f2D374B5C55895345f15" },
     },
     {
         id: "fallback-5",
@@ -93,7 +94,7 @@ const FALLBACK_TEMPLATES: MarketTemplate[] = [
         ipfsCid: "QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB",
         isVerified: false,
         salesCount: 11,
-        creator: { walletAddress: "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty" },
+        creator: { walletAddress: "0x1234567890abcdef1234567890abcdef12345678" },
     },
     {
         id: "fallback-6",
@@ -106,7 +107,7 @@ const FALLBACK_TEMPLATES: MarketTemplate[] = [
         ipfsCid: "QmSgvgwxZGaBLq2WQWnyPqvBbTLKy6N8wFLhdyXvp2Qn5f",
         isVerified: false,
         salesCount: 37,
-        creator: { walletAddress: "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy" },
+        creator: { walletAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" },
     },
 ];
 
@@ -124,12 +125,22 @@ const categoryColors: Record<TemplateCategory, string> = {
 };
 
 export default function MarketPage() {
-    const isConnected = useIsWalletConnected();
-    const selectedAccount = useSelectedAccount();
+    const isConnected = useIsEVMConnected();
+    const account = useEVMAccount();
+    const { executeTransaction } = useDocuMateContract();
     const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | "All">("All");
     const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [templates, setTemplates] = useState<MarketTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Debounce search input
+    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => setDebouncedSearch(value), 300);
+    };
 
     // Purchase modal state
     const [purchaseTarget, setPurchaseTarget] = useState<MarketTemplate | null>(null);
@@ -145,7 +156,7 @@ export default function MarketPage() {
         try {
             const params = new URLSearchParams();
             if (selectedCategory !== "All") params.set("category", selectedCategory);
-            if (searchQuery) params.set("search", searchQuery);
+            if (debouncedSearch) params.set("search", debouncedSearch);
 
             const response = await fetch(`/api/market/templates?${params}`);
             const data = await response.json();
@@ -162,7 +173,7 @@ export default function MarketPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedCategory, searchQuery]);
+    }, [selectedCategory, debouncedSearch]);
 
     useEffect(() => {
         fetchTemplates();
@@ -179,19 +190,33 @@ export default function MarketPage() {
         return matchesCategory && matchesSearch;
     });
 
+    const [txStatus, setTxStatus] = useState<string | null>(null);
+
     const handlePurchase = async (template: MarketTemplate) => {
-        if (!selectedAccount?.address) return;
+        if (!account) return;
 
         setIsPurchasing(true);
         setPurchaseResult(null);
+        setTxStatus(null);
 
         try {
+            // Step 1: Execute on-chain 75/20/5 split transaction
+            const creatorAddress = template.creator?.walletAddress || account;
+            const pasAmount = (template.price / 1000).toString(); // Convert price to PAS (e.g. 50 DOCU = 0.05 PAS)
+
+            setTxStatus("Executing on-chain transaction...");
+            const receipt = await executeTransaction(creatorAddress, pasAmount);
+            const txHash = receipt?.hash || "";
+            setTxStatus(null);
+
+            // Step 2: Record purchase in database
             const response = await fetch("/api/market/purchase", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     templateId: template.id,
-                    buyerAddress: selectedAccount.address,
+                    buyerAddress: account,
+                    txHash,
                 }),
             });
 
@@ -200,9 +225,8 @@ export default function MarketPage() {
             if (data.success) {
                 setPurchaseResult({
                     success: true,
-                    message: `Successfully purchased "${template.title}"! Revenue split: ${data.data.split.creator} DOCU to creator, ${data.data.split.company} DOCU to treasury, ${data.data.split.burn} DOCU burned.`,
+                    message: `Successfully purchased "${template.title}"! On-chain TX: ${txHash.slice(0, 10)}... Revenue split: 75% Creator, 20% Treasury, 5% Staking.`,
                 });
-                // Refresh templates
                 fetchTemplates();
             } else {
                 setPurchaseResult({
@@ -210,11 +234,13 @@ export default function MarketPage() {
                     message: data.error || "Purchase failed",
                 });
             }
-        } catch {
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Transaction failed";
             setPurchaseResult({
                 success: false,
-                message: "Network error. Please try again.",
+                message: message.includes("user rejected") ? "Transaction cancelled by user." : message,
             });
+            setTxStatus(null);
         } finally {
             setIsPurchasing(false);
         }
@@ -271,7 +297,7 @@ export default function MarketPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-orange-500" />
-                        <span className="text-gray-300 text-sm">5% Burn</span>
+                        <span className="text-gray-300 text-sm">5% Staking</span>
                     </div>
                 </div>
             </div>
@@ -314,7 +340,7 @@ export default function MarketPage() {
                             type="text"
                             placeholder="Search templates..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
                         />
                     </div>
@@ -476,7 +502,7 @@ export default function MarketPage() {
                                     </span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-orange-400">Burn (5%)</span>
+                                    <span className="text-orange-400">Staking (5%)</span>
                                     <span className="text-gray-300">
                                         {(purchaseTarget.price * 0.05).toFixed(2)} $DOCU
                                     </span>
@@ -505,7 +531,10 @@ export default function MarketPage() {
                                     className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {isPurchasing ? (
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            {txStatus && <span className="text-sm">{txStatus}</span>}
+                                        </>
                                     ) : (
                                         "Confirm Purchase"
                                     )}

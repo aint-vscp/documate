@@ -1,258 +1,391 @@
 # DocuMate
 
-A decentralized document management and marketplace platform built on the Polkadot ecosystem. DocuMate lets professionals create, sign, sell, and verify document templates as NFTs, with self-sovereign identity via KILT Protocol and privacy-first AI drafting through Phala Network's Trusted Execution Environment.
+> **Decentralized Reputation & Marketplace Engine** — preventing consumer fraud ($10B+ annually) and employment scams ($367M+ annually) through on-chain document verification and immutable revenue splitting on Polkadot Hub EVM.
 
-## What It Does
+[![Track 1: EVM Smart Contracts](https://img.shields.io/badge/Track%201-EVM%20Smart%20Contracts-E6007A?style=for-the-badge)](https://polkadot.com)
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?style=for-the-badge)](https://soliditylang.org)
+[![Polkadot Hub](https://img.shields.io/badge/Polkadot%20Hub-EVM-E6007A?style=for-the-badge)](https://polkadot.com)
 
-- **Document Studio** - Create and mint professional document templates (legal, creative, engineering) as NFTs on Asset Hub
-- **Template Marketplace** - Buy and sell verified templates with an immutable 75/20/5 revenue split (Creator / Treasury / Burn)
-- **Decentralized Identity** - Self-sovereign professional identity and credentials via KILT Protocol DIDs
-- **Proof-of-Contract CV** - On-chain reputation built from verified transactions, queryable by anyone
-- **Privacy-First AI** - AI-assisted document drafting inside Phala TEE so your data never leaves the enclave
-- **Breach Reporting** - Community-driven accountability with admin-verified breach reports and reputation tagging
-- **Admin Panel** - Full admin dashboard for user management, template verification, breach investigation, and audit logs
+---
 
-## Tech Stack
+## What is DocuMate?
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 15 (App Router, Turbopack), React 19, Tailwind CSS |
-| Database | SQLite via Prisma 7 + libSQL adapter |
-| Identity | KILT Protocol (DID, Verifiable Credentials) |
-| NFTs | Polkadot Asset Hub (template minting, ownership) |
-| Privacy AI | Phala Network TEE |
-| Smart Contracts | ink! (Rust) - Marketplace contract |
-| State Management | Zustand |
-| Wallets | Polkadot.js extension |
+DocuMate is a decentralized contract governance and professional reputation network built on Polkadot Hub EVM. It combines:
+
+- **On-chain document verification** — Upload document hashes to the blockchain with KILT DID identity verification, creating tamper-proof records.
+- **Immutable 75/20/5 revenue splitting** — Every marketplace transaction enforces a fixed split: 75% to the creator, 20% to the DocuMate treasury, 5% to the community staking pool. These ratios are hardcoded as Solidity constants and cannot be changed.
+- **TEE-backed document classification** — A simulated Phala Phat Contract classifies documents into Gold, Silver, or Bronze reputation tiers based on digital signatures and document structure.
+- **Proof of Contract standard** — Building toward verified freelancer CVs backed by on-chain contract history.
+
+---
+
+## Quick Navigation for Judges
+
+| What | Path |
+|------|------|
+| **Solidity Contract** | [`contracts/DocuMate.sol`](./contracts/DocuMate.sol) |
+| **Deploy Script (Track 2)** | [`scripts/deploy-track2.js`](./scripts/deploy-track2.js) |
+| **TEE Validation API** | [`src/app/api/validate-document/route.ts`](./src/app/api/validate-document/route.ts) |
+| **EVM Wallet Hook** | [`src/hooks/useEVMWallet.ts`](./src/hooks/useEVMWallet.ts) |
+| **Contract Hook** | [`src/hooks/useDocuMateContract.ts`](./src/hooks/useDocuMateContract.ts) |
+| **Contract ABI & Config** | [`src/config/DocuMateABI.ts`](./src/config/DocuMateABI.ts) |
+| **Hackathon Winning Playbook** | [`HACKATHON_WINNING_PLAYBOOK.md`](./HACKATHON_WINNING_PLAYBOOK.md) |
+| **Technical Summary (1 page)** | [`TECHNICAL_SUMMARY.md`](./TECHNICAL_SUMMARY.md) |
+| **Current Architecture** | [`ARCHITECTURE_CURRENT.md`](./ARCHITECTURE_CURRENT.md) |
+| **Demo Fallback Plan** | [`DEMO_FALLBACK.md`](./DEMO_FALLBACK.md) |
+| **Dashboard** | `http://localhost:3000/dashboard` |
+
+---
+
+## Hackathon Alignment
+
+This repository is structured for the Polkadot Solidity Hackathon and aims to score strongly on both delivery and technical depth:
+
+- **Track 1 fit (EVM Smart Contracts):** Solidity-based application flows and marketplace mechanics on Polkadot Hub.
+- **Track 2 fit (PVM + native functionality):** precompile integration patterns, staking/slashing, and runtime-aware contract architecture.
+- **Production mindset:** testnet deployment, smoke tests, contract tests, and release checklist.
+
+Execution details are maintained in [`HACKATHON_WINNING_PLAYBOOK.md`](./HACKATHON_WINNING_PLAYBOOK.md).
+
+---
 
 ## Architecture
 
 ```
-src/
-  app/              # Next.js App Router pages & API routes
-    api/            # REST endpoints (admin, market, breaches, auth, etc.)
-    admin/          # Admin panel (stats, verification, breaches, users, templates, logs)
-    dashboard/      # User dashboard (documents, studio, market, profile, filing)
-  components/       # React components (chain, document, market)
-  config/           # Chain configs, constants, contract addresses
-  hooks/            # React hooks (useWallet)
-  lib/              # Core libraries
-    auth/           # SIWP (Sign-In With Polkadot)
-    contracts/      # Marketplace contract service
-    db/             # Prisma client (libSQL adapter)
-    document/       # Document store, signatures, templates
-    indexer/        # On-chain event indexer
-    polkadot/       # Asset Hub, KILT, Phala integrations
-    reputation/     # Reputation scoring & tagging
-  types/            # TypeScript interfaces
-contracts/          # ink! smart contracts (marketplace)
-prisma/             # Database schema & migrations
+DocuMate.sol (Polkadot Hub EVM - Deployed)
+    |
+    |-- onlyVerified modifier (mocked KILT DID precompile)
+    |-- uploadDocument()      -> stores document hash on-chain
+    |-- executeTransaction()  -> 75/20/5 revenue split
+    |       |-- 75% -> Creator
+    |       |-- 20% -> DocuMate Treasury
+    |       |-- 5%  -> Community Staking Pool
+    |
+Next.js Dashboard (/dashboard)
+    |-- MetaMask wallet connection (auto-adds Polkadot Hub Testnet)
+    |-- useEVMWallet (zustand store) -> wallet state management
+    |-- useDocuMateContract (hook)   -> all contract interactions via ethers.js v6
+    |-- TEE Validation API (/api/validate-document)
+    |       |-- Simulates Phala Phat Contract
+    |       |-- Classifies: Gold / Silver / Bronze
+    |-- Prisma + SQLite (templates, users, purchases, breach reports)
 ```
 
-## Prerequisites
+---
+
+## Deployed Contracts (Current Testnet)
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| **Marketplace** | `0x233FE6112E5Ad4Db1c83358B30D581F837314BB1` | [Blockscout](https://blockscout-testnet.polkadot.io/address/0x233FE6112E5Ad4Db1c83358B30D581F837314BB1) |
+| **Staking** | `0x1cf190eabe490B50AaBE91b4567ebe88126e8D24` | [Blockscout](https://blockscout-testnet.polkadot.io/address/0x1cf190eabe490B50AaBE91b4567ebe88126e8D24) |
+
+| Field | Value |
+|-------|-------|
+| **Network** | Polkadot Hub TestNet |
+| **Chain ID** | `420420417` |
+| **RPC** | `https://eth-rpc-testnet.polkadot.io/` |
+
+---
+
+## Smart Contract: DocuMate.sol
+
+### Key Functions
+
+| Function | Access | Description |
+|----------|--------|-------------|
+| `mockKiltPrecompile(address)` | `onlyOwner` | Simulates KILT DID precompile verification |
+| `revokeVerification(address)` | `onlyOwner` | Revoke a verified address |
+| `uploadDocument(string)` | `onlyVerified` | Store a document IPFS hash on-chain |
+| `executeTransaction(address)` | `onlyVerified`, `payable` | Execute a marketplace transaction with 75/20/5 split |
+| `calculateSplit(uint256)` | `view` | Preview split amounts for a given total |
+| `isVerified(address)` | `view` | Check if an address has verified identity |
+| `getPlatformStats()` | `view` | Get total transactions and volume |
+| `getDocument(uint256)` | `view` | Get document details by ID |
+| `getUserDocuments(address)` | `view` | Get all document IDs for a user |
+
+### Revenue Split (Immutable)
+
+```
+Total Payment
+    |-- 75% -> Creator (content/service provider)
+    |-- 20% -> DocuMate Treasury (platform revenue)
+    |-- 5%  -> Community Staking Pool
+```
+
+These percentages are `uint8 public constant` values in the contract — they cannot be modified after deployment.
+
+### KILT DID Precompile Note
+
+The `onlyVerified` modifier currently checks an internal mapping populated by `mockKiltPrecompile()`. In production on Polkadot Hub, this is replaced by a native precompile call to the KILT identity pallet, enabling trustless DID verification without any centralized mapping.
+
+---
+
+## Features
+
+### Profile & DID Verification (`/dashboard/profile`)
+Create a KILT Light DID locally (stored in localStorage) and verify it on-chain via the smart contract. Shows verification badge, on-chain activity stats, and reputation score.
+
+### DocuWriter (`/dashboard/documents/new`)
+AI-assisted document creation from professional templates (NDA, Employment Contract, Service Agreement, Lease). Fill in party details and generate a complete document ready for signing.
+
+### Document Signing (`/dashboard/documents/[id]`)
+Review, edit, and finalize documents. On finalization, the document hash is uploaded to the blockchain via `uploadDocument()`, creating an immutable on-chain record with a transaction hash and block explorer link.
+
+### DocuMarket (`/dashboard/market`)
+A template marketplace where creators sell document templates. Purchases execute the on-chain `executeTransaction()` with the 75/20/5 revenue split. Pricing is in PAS (testnet native token).
+
+### Template Studio (`/dashboard/studio`)
+Create and publish document templates to the marketplace. Templates are stored in the database and available for purchase on DocuMarket.
+
+### Filing Cabinet (`/dashboard/filing`)
+Organize and browse all signed documents. Filter by status, search by name, and access document details.
+
+### Admin Panel (`/admin`)
+Admin-only interface (restricted to deployer wallet) for managing the verification queue and reviewing breach reports.
+
+---
+
+## Setup For Testnet
+
+### Prerequisites
 
 - **Node.js** >= 18
-- **npm** >= 9
-- A Polkadot-compatible browser wallet ([Polkadot.js extension](https://polkadot.js.org/extension/), [Talisman](https://www.talisman.xyz/), or [SubWallet](https://www.subwallet.app/))
-- (Optional) [Rust + cargo-contract](https://use.ink/getting-started/setup) for ink! contract development
+- **MetaMask** browser extension
+- **PAS testnet tokens** from the [Polkadot Hub Testnet Faucet](https://faucet.polkadot.io/)
 
-## Local Development Setup
-
-### 1. Clone and install
+### 1. Install dependencies
 
 ```bash
-git clone https://github.com/your-org/documate.git
-cd documate
 npm install
 ```
 
 ### 2. Configure environment
 
-Create a `.env` file in the project root:
+Create `.env` in project root:
 
 ```env
-# Database - SQLite (local file)
 DATABASE_URL="file:./dev.db"
-
-# Optional: Phala TEE proxy endpoint
-# PHALA_TEE_ENDPOINT="https://your-phala-endpoint.example"
+PRIVATE_KEY="0xYOUR_TESTNET_PRIVATE_KEY"
+ADMIN_PRIVATE_KEY="0xYOUR_TESTNET_PRIVATE_KEY"
+POLKADOT_HUB_RPC_URL="https://eth-rpc-testnet.polkadot.io/"
+MARKETPLACE_CONTRACT_ADDRESS="0x233FE6112E5Ad4Db1c83358B30D581F837314BB1"
+STAKING_CONTRACT_ADDRESS="0x1cf190eabe490B50AaBE91b4567ebe88126e8D24"
 ```
 
-### 3. Initialize the database
+Variable purpose:
+
+- `PRIVATE_KEY`: deployer/operator wallet for Hardhat scripts
+- `ADMIN_PRIVATE_KEY`: signer used by admin breach API for on-chain slashing
+- `MARKETPLACE_CONTRACT_ADDRESS`: deployed marketplace contract
+- `STAKING_CONTRACT_ADDRESS`: deployed staking contract
+
+### 3. Initialize database
 
 ```bash
 npx prisma generate
 npx prisma db push
 ```
 
-This creates the SQLite database (`dev.db`) and generates the Prisma client with all models (User, Template, Purchase, BreachReport, ReputationTag, AdminLog, etc.).
+### 4. Compile and run tests
 
-### 4. Start the dev server
+```bash
+npm run contracts:compile
+npm run contracts:test
+```
+
+### 5. Optional: deploy fresh contracts to testnet
+
+If you need your own deployment (new owner or fresh state):
+
+```bash
+node scripts/deploy-track2.js
+```
+
+After deployment, copy addresses into:
+
+- `.env` (`MARKETPLACE_CONTRACT_ADDRESS`, `STAKING_CONTRACT_ADDRESS`)
+- `src/config/DocuMateABI.ts`
+- `src/config/DocuMateStakingABI.ts`
+
+### 6. Run live testnet checks
+
+Smoke test (deploy + tx flow):
+
+```bash
+node scripts/testnet-smoke-track2.js
+```
+
+Config check (read current deployed state from `.env`):
+
+```bash
+node scripts/testnet-config-check.js
+```
+
+### 7. Start the app
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The app uses Turbopack for fast HMR.
+Open **http://localhost:3000/dashboard**.
 
-### 5. Connect a wallet
+---
 
-Install a Polkadot wallet extension, create or import an account on Westend (testnet), and connect it through the app. You can get testnet WND tokens from the [Westend faucet](https://faucet.polkadot.io/westend).
+## Production Readiness Guide
 
-## Production Deployment
+### 1. Environment and secrets
 
-### 1. Environment variables
+- Use a dedicated production deployer/admin wallet.
+- Rotate any key that was ever committed or shared.
+- Store production secrets in a secret manager (not `.env` in git).
+- Keep `PRIVATE_KEY` and `ADMIN_PRIVATE_KEY` out of frontend hosting environments unless server routes must sign transactions.
 
-Set these in your hosting provider:
+### 2. Contract deployment strategy
 
-```env
-# Required
-DATABASE_URL="file:./prod.db"          # Or a remote libSQL/Turso URL
-NODE_ENV="production"
+- Deploy fresh marketplace and staking contracts for production.
+- Record deployment metadata: contract addresses, chain ID, deployer, tx hashes, and block numbers.
+- Update these files with production addresses:
+    - `src/config/DocuMateABI.ts`
+    - `src/config/DocuMateStakingABI.ts`
 
-# Optional - contract addresses (fill after deploying contracts)
-# See src/config/contracts.ts
-```
+### 3. Verification and security controls
 
-For a remote database (recommended for production), use [Turso](https://turso.tech/):
+- Switch from mock verification to precompile/real verification mode before production usage.
+- Ensure admin-only slashing endpoints are wallet-gated and audited.
+- Add backend rate limiting and request validation for admin routes.
+- Enable monitoring/alerting for failed slash transactions and verification failures.
 
-```env
-DATABASE_URL="libsql://your-db-name.turso.io"
-TURSO_AUTH_TOKEN="your-auth-token"
-```
+### 4. App and database hosting
 
-Then update `src/lib/db/index.ts` to pass the auth token:
+Frontend:
 
-```typescript
-const adapter = new PrismaLibSql({
-    url: process.env.DATABASE_URL!,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-});
-```
+- Deploy Next.js app to Vercel (or equivalent).
+- Set only required runtime env vars.
 
-### 2. Build
+Database:
 
-```bash
-npm run build
-```
+- Move from SQLite to managed Postgres/Turso for production reliability.
+- Run schema migration before release.
 
-This compiles all pages and API routes, runs TypeScript type checking and ESLint, and outputs to `.next/`.
+### 5. Release checklist
 
-### 3. Start
+Run before every release:
 
 ```bash
-npm start
-```
-
-Runs the production server on port 3000 (override with `PORT` env var).
-
-### 4. Deploy to Vercel (recommended)
-
-```bash
-npx vercel --prod
-```
-
-Or connect the GitHub repo to [Vercel](https://vercel.com) for automatic deployments on push. Set environment variables in the Vercel dashboard.
-
-### 5. Deploy smart contracts (optional)
-
-The ink! marketplace contract lives in `contracts/marketplace/`. To deploy:
-
-```bash
-cd contracts/marketplace
-cargo contract build --release
-cargo contract upload --suri "//Alice" --url wss://westend-asset-hub-rpc.polkadot.io
-cargo contract instantiate --suri "//Alice" --constructor new --args "TREASURY_ADDRESS" --url wss://westend-asset-hub-rpc.polkadot.io
-```
-
-After deployment, update the contract address in `src/config/contracts.ts`.
-
-## Testing
-
-### Type checking
-
-```bash
-npx tsc --noEmit
-```
-
-### Linting
-
-```bash
+npm ci
 npm run lint
+npm run contracts:compile
+npm run contracts:test
+node scripts/testnet-config-check.js
 ```
 
-### Full build verification
+Recommended post-deploy checks:
 
-```bash
-npm run build
+- Verify marketplace and staking ownership on-chain.
+- Execute one real purchase and one stake flow on target network.
+- Validate admin breach flow from API to on-chain `slashStake`.
+- Confirm explorer links and dashboard reads are correct.
+
+---
+
+## TEE Validation (Phala Simulation)
+
+**Endpoint:** `POST /api/validate-document`
+
+Simulates a Phala Network Phat Contract executing inside a Trusted Execution Environment to validate document authenticity.
+
+Current validator behavior:
+
+- Parses PDF signature structures (`ByteRange`, `Contents`, `SubFilter`)
+- Attempts PKCS#7/CMS verification using `node-forge`
+- Rejects flat scans/image-only files for the high-trust tier
+- Returns validation metadata with confidence and tier
+
+| Tier | Classification | Trigger |
+|------|---------------|---------|
+| Gold (T1) | Cryptographically valid signature | Signature dictionary is present and PKCS#7/CMS verification succeeds |
+| Silver (T2) | Structured but unverified signature context | Signature metadata detected, but full cryptographic verification not conclusive |
+| Bronze (T3) | No trustworthy signature evidence | No usable signature structure or likely scan-only content |
+
+Each response includes a mock TEE attestation hash, confidence score, and simulated Phala worker ID.
+
+---
+
+## 60-Second Demo Walkthrough
+
+1. **(0-10s)** Open `http://localhost:3000/dashboard`. Show the sidebar with all sections: Profile, Documents, DocuWriter, DocuMarket, Template Studio, Filing Cabinet.
+
+2. **(10-20s)** Click **Connect MetaMask**. MetaMask auto-switches to Polkadot Hub TestNet (Chain ID 420420417). Show the connected wallet address and "Polkadot Hub" chain indicator.
+
+3. **(20-30s)** Go to **Profile**. Click **Verify DID on Polkadot Hub**. Show the green "Verified on Polkadot Hub" badge appear after the on-chain transaction confirms.
+
+4. **(30-45s)** Go to **DocuWriter**. Select a template, fill in details, create the document. Open it, click **Sign & Finalize**. Show the transaction hash and block explorer link confirming the document hash is stored on-chain.
+
+5. **(45-60s)** Go to **DocuMarket**. Purchase a template. Show the on-chain `executeTransaction` with the 75/20/5 split: 75% to the creator, 20% to DocuMate treasury, 5% to the community staking pool.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Smart Contract | Solidity 0.8.24 (Polkadot Hub EVM) |
+| Frontend | Next.js 15 (App Router, Turbopack) |
+| Styling | TailwindCSS 3 |
+| Wallet | MetaMask via ethers.js v6 |
+| State Management | zustand 5 |
+| Identity | KILT DID (mocked via precompile simulation) |
+| TEE | Phala Phat Contract (mocked via API route) |
+| Database | Prisma 7 + SQLite |
+| Deployment | Hardhat |
+| Language | TypeScript 5, Solidity |
+
+---
+
+## Project Structure
+
+```
+documate/
+├── contracts/
+│   └── DocuMate.sol              # Solidity smart contract
+├── scripts/
+│   ├── deploy-track2.js          # Deploy marketplace + staking
+│   ├── testnet-smoke-track2.js   # Live smoke flow on testnet
+│   └── testnet-config-check.js   # Validate configured addresses/state
+├── src/
+│   ├── app/
+│   │   ├── admin/                # Admin panel (verification, breaches)
+│   │   ├── api/
+│   │   │   ├── admin/            # Admin API routes
+│   │   │   ├── market/           # Marketplace API (mint, templates, purchase)
+│   │   │   └── validate-document/# TEE validation API
+│   │   ├── dashboard/
+│   │   │   ├── documents/        # Document list, create, sign
+│   │   │   ├── filing/           # Filing cabinet
+│   │   │   ├── market/           # DocuMarket
+│   │   │   ├── profile/          # Profile & DID verification
+│   │   │   └── studio/           # Template studio
+│   │   ├── globals.css
+│   │   ├── layout.tsx            # Root layout
+│   │   └── page.tsx              # Landing page
+│   ├── components/
+│   │   └── chain/
+│   │       └── WalletConnect.tsx  # MetaMask wallet connection UI
+│   ├── config/
+│   │   └── DocuMateABI.ts        # Contract ABI, address, network config
+│   └── hooks/
+│       ├── useDocuMateContract.ts # Contract interaction hook
+│       └── useEVMWallet.ts       # MetaMask wallet state (zustand)
+├── prisma/
+│   └── schema.prisma             # Database schema
+├── hardhat.config.js             # Hardhat configuration
+├── package.json
+└── README.md
 ```
 
-This is the most comprehensive check - it compiles all pages, runs type checking, lints, and verifies all API routes can be statically analyzed. Exit code 0 means everything passes.
-
-### Manual testing checklist
-
-**Wallet & Identity:**
-1. Connect a Polkadot wallet at any dashboard page
-2. Navigate to `/dashboard/profile` and create a DID (KILT identity)
-3. Verify the DID badge appears and credentials display correctly
-
-**Marketplace:**
-1. Go to `/dashboard/studio` to create and mint a template
-2. Visit `/dashboard/market` to browse templates
-3. Purchase a template and verify the 75/20/5 revenue split in the confirmation
-
-**Breach Reporting:**
-1. On `/dashboard/profile`, click "Report Breach"
-2. Fill in a target wallet address, select a reason, add description
-3. Submit and verify the report appears in `/admin/breaches`
-
-**Admin Panel** (requires `isAdmin: true` on User record):
-1. `/admin` - Dashboard with aggregate stats
-2. `/admin/verification` - Approve/reject template verification requests
-3. `/admin/breaches` - Investigate, confirm, or dismiss breach reports
-4. `/admin/users` - Search and view all registered users
-5. `/admin/templates` - Browse and filter all templates
-6. `/admin/logs` - View admin action audit trail
-
-To make a user admin, update the database directly:
-
-```bash
-npx prisma studio
-```
-
-Then set `isAdmin = true` on the target user record.
-
-### API routes reference
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/auth/challenge` | GET | Get SIWP auth challenge |
-| `/api/auth/verify` | POST | Verify signed challenge |
-| `/api/market/templates` | GET | List templates (filters: category, search, verified) |
-| `/api/market/mint` | POST | Mint a new template NFT |
-| `/api/market/purchase` | POST | Purchase a template |
-| `/api/verification/submit` | POST | Submit template for verification |
-| `/api/breaches/report` | POST | Report a breach of contract |
-| `/api/reputation/:id` | GET | Get user reputation profile |
-| `/api/documents/generate` | POST | Generate document via AI |
-| `/api/phala-proxy` | POST | Proxy to Phala TEE |
-| `/api/admin/stats` | GET | Admin dashboard statistics |
-| `/api/admin/verification` | GET/POST | Manage verification requests |
-| `/api/admin/breaches` | GET/POST | Manage breach reports |
-| `/api/admin/users` | GET | List/search users |
-| `/api/admin/templates` | GET | List/filter templates |
-| `/api/admin/logs` | GET | Admin audit log |
-
-## Revenue Model
-
-Every template sale enforces an immutable split, mirrored in both the ink! smart contract and the application code:
-
-| Recipient | Share | Purpose |
-|-----------|-------|---------|
-| Creator | 75% | Paid to the template author |
-| Treasury | 20% | DocuMate platform revenue |
-| Burn | 5% | Token deflation mechanism |
+---
 
 ## License
 
-Private - All rights reserved.
+MIT

@@ -7,8 +7,8 @@
 
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useWallet } from "@/hooks/useWallet";
+import { useEVMWallet } from "@/hooks/useEVMWallet";
+import { useDocuMateContract } from "@/hooks/useDocuMateContract";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
 import { SignaturePanel } from "@/components/document/SignaturePanel";
 import {
@@ -17,8 +17,6 @@ import {
     updateDocumentStatus,
     createSignature,
     hashDocument,
-    encodeDocProof,
-    createOnChainProof,
 } from "@/lib/document";
 import type { DocumentInstance } from "@/types";
 
@@ -28,8 +26,8 @@ interface PageProps {
 
 export default function DocumentViewPage(props: PageProps) {
     const params = use(props.params);
-    const router = useRouter();
-    const { selectedAccount, api, injector } = useWallet();
+    const account = useEVMWallet((s) => s.account);
+    const { uploadDocument } = useDocuMateContract();
     const [document, setDocument] = useState<DocumentInstance | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [txStatus, setTxStatus] = useState<string | null>(null);
@@ -50,13 +48,13 @@ export default function DocumentViewPage(props: PageProps) {
     };
 
     const handleSign = async () => {
-        if (!document || !selectedAccount?.address) return;
+        if (!document || !account) return;
 
-        const isSender = document.sender === selectedAccount.address;
-        const isReceiver = document.receiver === selectedAccount.address;
+        const isSender = document.sender === account;
+        const isReceiver = document.receiver === account;
 
         // Create signature
-        const signature = await createSignature(selectedAccount.address, document.content);
+        const signature = await createSignature(account, document.content);
 
         let updatedDoc: DocumentInstance;
 
@@ -82,46 +80,17 @@ export default function DocumentViewPage(props: PageProps) {
                 finalizedAt: new Date().toISOString(),
             };
 
-            // Store on-chain if API is available
-            if (api && injector) {
-                try {
-                    setTxStatus("Creating on-chain proof...");
-
-                    const proof = createOnChainProof(updatedDoc, finalHash);
-                    const remarkHex = encodeDocProof(proof);
-
-                    const tx = api.tx.system.remark(remarkHex);
-
-                    setTxStatus("Waiting for signature...");
-
-                    await new Promise<void>((resolve, reject) => {
-                        tx.signAndSend(
-                            selectedAccount.address,
-                            { signer: injector.signer },
-                            ({ status, dispatchError }: { status: { isInBlock: boolean; isFinalized: boolean; asInBlock?: { toString: () => string } }; dispatchError?: unknown }) => {
-                                if (dispatchError) {
-                                    reject(new Error("Transaction failed"));
-                                    return;
-                                }
-
-                                if (status.isInBlock) {
-                                    setTxStatus("Included in block...");
-                                    updatedDoc.transactionHash = status.asInBlock?.toString();
-                                }
-
-                                if (status.isFinalized) {
-                                    setTxStatus("Finalized on-chain!");
-                                    setTimeout(() => setTxStatus(null), 3000);
-                                    resolve();
-                                }
-                            }
-                        );
-                    });
-                } catch (error) {
-                    console.error("On-chain finalization failed:", error);
-                    setTxStatus("On-chain proof failed (document still finalized locally)");
-                    setTimeout(() => setTxStatus(null), 5000);
-                }
+            // Store document hash on-chain via EVM contract
+            try {
+                setTxStatus("Uploading document hash to Polkadot Hub...");
+                const receipt = await uploadDocument(finalHash);
+                updatedDoc.transactionHash = receipt?.hash;
+                setTxStatus("Document hash stored on-chain!");
+                setTimeout(() => setTxStatus(null), 3000);
+            } catch (error) {
+                console.error("On-chain upload failed:", error);
+                setTxStatus("On-chain upload failed (document still finalized locally)");
+                setTimeout(() => setTxStatus(null), 5000);
             }
         } else {
             return;
@@ -245,7 +214,7 @@ export default function DocumentViewPage(props: PageProps) {
                 <div>
                     <SignaturePanel
                         document={document}
-                        currentUserAddress={selectedAccount?.address || ""}
+                        currentUserAddress={account || ""}
                         onSign={handleSign}
                         onSend={document.status === "DRAFT" ? handleSend : undefined}
                         onReject={document.status === "PENDING_RECEIVER_SIGN" ? handleReject : undefined}

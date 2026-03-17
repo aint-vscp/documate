@@ -6,6 +6,29 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { ethers } from "ethers";
+
+const STAKING_ABI = [
+    "function slashStake(address _user, string _reason) external",
+];
+
+async function slashStakeOnChain(targetWallet: string, reason: string): Promise<string | null> {
+    const rpcUrl = process.env.POLKADOT_HUB_RPC_URL ?? "https://eth-rpc-testnet.polkadot.io/";
+    const privateKey = process.env.ADMIN_PRIVATE_KEY;
+    const stakingAddress = process.env.STAKING_CONTRACT_ADDRESS;
+
+    if (!privateKey || !stakingAddress) {
+        return null;
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const contract = new ethers.Contract(stakingAddress, STAKING_ABI, wallet);
+
+    const tx = await contract.slashStake(targetWallet, reason);
+    const receipt = await tx.wait();
+    return receipt?.hash ?? tx.hash ?? null;
+}
 
 export async function GET(request: NextRequest) {
     try {
@@ -105,6 +128,8 @@ export async function POST(request: NextRequest) {
             data: updateData,
         });
 
+        let onChainSlashTx: string | null = null;
+
         // If confirmed, create a negative reputation tag for the target
         if (action === "confirm" && updated.targetId) {
             const tagValue = severity === "CRITICAL" ? -100 : severity === "HIGH" ? -50 : -25;
@@ -118,6 +143,22 @@ export async function POST(request: NextRequest) {
                     value: tagValue,
                 },
             });
+
+            const targetUser = await prisma.user.findUnique({
+                where: { id: updated.targetId },
+                select: { walletAddress: true },
+            });
+
+            if (targetUser?.walletAddress) {
+                try {
+                    onChainSlashTx = await slashStakeOnChain(
+                        targetUser.walletAddress,
+                        resolution || "Admin confirmed breach"
+                    );
+                } catch (chainError) {
+                    console.error("On-chain slash failed:", chainError);
+                }
+            }
         }
 
         // Log admin action
@@ -132,7 +173,11 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        return NextResponse.json({ success: true, data: updated });
+        return NextResponse.json({
+            success: true,
+            data: updated,
+            onChainSlashTx,
+        });
     } catch (error) {
         console.error("Breach action error:", error);
         return NextResponse.json(

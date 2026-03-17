@@ -5,7 +5,7 @@
  * THE IRON RULES - Revenue Split (Enforced by Smart Contract):
  * - 75% → Creator
  * - 20% → DocuMate Treasury  
- * - 5%  → Burn Address
+ * - 5%  → Community Staking
  */
 
 import type { ApiPromise } from "@polkadot/api";
@@ -22,7 +22,7 @@ type ContractPromiseType = InstanceType<typeof import("@polkadot/api-contract").
 export const REVENUE_SPLIT = {
     CREATOR: 75,
     COMPANY: 20,
-    BURN: 5,
+    STAKING: 5,
 } as const;
 
 // Contract addresses (to be updated after deployment)
@@ -30,12 +30,12 @@ export const CONTRACT_ADDRESSES = {
     testnet: {
         marketplace: "", // Deploy and fill this
         treasury: "",    // Company treasury wallet
-        burn: "0x0000000000000000000000000000000000000000000000000000000000000000",
+        staking: "0x0000000000000000000000000000000000000000000000000000000000000000",
     },
     mainnet: {
         marketplace: "",
         treasury: "",
-        burn: "0x0000000000000000000000000000000000000000000000000000000000000000",
+        staking: "0x0000000000000000000000000000000000000000000000000000000000000000",
     },
 };
 
@@ -143,25 +143,25 @@ export class MarketplaceService {
      * @param price - Price in human-readable format (e.g., "100")
      * @param _decimals - Token decimals (default 12 for DOT)
      */
-    formatRevenueSplitForDisplay(price: number, _decimals: number = 12): {
+    formatRevenueSplitForDisplay(price: number): {
         creator: number;
         company: number;
-        burn: number;
+        staking: number;
         creatorPercent: number;
         companyPercent: number;
-        burnPercent: number;
+        stakingPercent: number;
     } {
         const creatorAmount = (price * REVENUE_SPLIT.CREATOR) / 100;
         const companyAmount = (price * REVENUE_SPLIT.COMPANY) / 100;
-        const burnAmount = price - creatorAmount - companyAmount;
+        const stakingAmount = price - creatorAmount - companyAmount;
 
         return {
             creator: creatorAmount,
             company: companyAmount,
-            burn: burnAmount,
+            staking: stakingAmount,
             creatorPercent: REVENUE_SPLIT.CREATOR,
             companyPercent: REVENUE_SPLIT.COMPANY,
-            burnPercent: REVENUE_SPLIT.BURN,
+            stakingPercent: REVENUE_SPLIT.STAKING,
         };
     }
 

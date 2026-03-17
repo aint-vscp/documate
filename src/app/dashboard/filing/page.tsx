@@ -6,10 +6,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useIsWalletConnected, useSelectedAccount } from "@/hooks/useWallet";
+import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
 import { sendToTEE, checkTEEHealth } from "@/lib/polkadot/phala";
 import { loadUserProfile } from "@/lib/polkadot/kilt";
-import { FREE_TEMPLATES, getAllTemplates, buildPlaceholderFields } from "@/lib/document/templateService";
+import { getAllTemplates, buildPlaceholderFields } from "@/lib/document/templateService";
 import { TemplateGallery } from "@/components/document/TemplateGallery";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
 import type { AIMessage, DocumentTemplate, PlaceholderField, UserProfile } from "@/types";
@@ -17,8 +17,8 @@ import type { AIMessage, DocumentTemplate, PlaceholderField, UserProfile } from 
 type ViewMode = "gallery" | "editor";
 
 export default function DocuWriterPage() {
-    const isConnected = useIsWalletConnected();
-    const selectedAccount = useSelectedAccount();
+    const isConnected = useIsEVMConnected();
+    const account = useEVMAccount();
 
     // View state
     const [viewMode, setViewMode] = useState<ViewMode>("gallery");
@@ -120,10 +120,10 @@ export default function DocuWriterPage() {
                 !keyLower.includes("receiver") &&
                 !keyLower.includes("party_b")
             ) {
-                if (selectedAccount?.address) values[placeholder.key] = selectedAccount.address;
+                if (account) values[placeholder.key] = account;
             }
             if (keyLower === "freelancer_wallet" || keyLower === "sender_wallet" || keyLower === "party_a_wallet") {
-                if (selectedAccount?.address) values[placeholder.key] = selectedAccount.address;
+                if (account) values[placeholder.key] = account;
             }
 
             // === ROLE / TITLE FIELDS ===
@@ -178,7 +178,7 @@ export default function DocuWriterPage() {
         });
 
         return values;
-    }, [getDIDData, selectedAccount]);
+    }, [getDIDData, account]);
 
     /**
      * Load a template: set up placeholders, auto-fill, switch to editor
@@ -196,14 +196,14 @@ export default function DocuWriterPage() {
         const filledFields: string[] = [];
         if (didData.name) filledFields.push(`Name: ${didData.name}`);
         if (didData.role) filledFields.push(`Role: ${didData.role}`);
-        if (selectedAccount?.address) filledFields.push(`Wallet: ${selectedAccount.address.slice(0, 8)}...${selectedAccount.address.slice(-6)}`);
+        if (account) filledFields.push(`Wallet: ${account.slice(0, 8)}...${account.slice(-6)}`);
 
         const autoFillSummary = filledFields.length > 0
             ? `\n\nAuto-filled from your DID:\n${filledFields.map(f => `- ${f}`).join("\n")}`
             : "";
 
         return autoFillSummary;
-    }, [autoFillWithDID, getDIDData, selectedAccount]);
+    }, [autoFillWithDID, getDIDData, account]);
 
     /**
      * Handle manual template selection from gallery
@@ -262,29 +262,54 @@ export default function DocuWriterPage() {
         const values: Record<string, string> = {};
         const textLower = text.toLowerCase();
 
-        // Build alias map: multiple trigger phrases -> placeholder key
-        const aliasMap: { phrases: string[]; key: string }[] = fields.map((f) => {
-            const phrases = [
-                f.key.replace(/_/g, " "),
-                f.label.toLowerCase(),
-            ];
-            // Common aliases
-            const k = f.key.toLowerCase();
-            if (k.includes("client_name") || k === "party_b_name") phrases.push("bill to", "billed to", "client");
-            if (k.includes("client_address")) phrases.push("address is", "client address", "located at", "location");
-            if (k.includes("client_wallet")) phrases.push("client wallet", "their wallet", "receiver wallet");
-            if (k.includes("invoice_number")) phrases.push("invoice number", "inv number", "inv no", "invoice no");
-            if (k.includes("total") && !k.includes("sub")) phrases.push("total", "total due", "grand total");
-            if (k.includes("subtotal")) phrases.push("subtotal", "sub total");
-            if (k.includes("amount_1") || k === "amount_1") phrases.push("amount", "price", "cost", "for the amount");
-            if (k.includes("service_1") || k === "service_1") phrases.push("service", "for");
-            if (k.includes("tax_percent")) phrases.push("tax", "tax rate", "vat");
-            if (k.includes("tax_amount")) phrases.push("tax amount");
-            if (k.includes("sender_name")) phrases.push("from", "sender");
-            if (k.includes("due_date")) phrases.push("due date", "due on", "payment due");
-            if (k.includes("payment")) phrases.push("payment", "pay via", "pay using", "pay by", "payment method", "paid via", "paid using", "paid by");
-            return { phrases: [...new Set(phrases)], key: f.key };
-        });
+        const findField = (...keys: string[]) => fields.find((f) => keys.includes(f.key));
+
+        // NDA and agreement aliases for counterparty fields
+        const otherPartyNameField = findField("party_b_name", "client_name");
+        const otherPartyAddressField = findField("party_b_address", "client_address");
+        const myAddressField = findField("party_a_address", "sender_address");
+        const purposeField = findField("purpose");
+        const durationField = findField("duration_years");
+        const jurisdictionField = findField("jurisdiction");
+
+        // Extract EVM address mentions from natural phrases
+        const evmAddress = text.match(/0x[a-fA-F0-9]{40}/)?.[0];
+        if (evmAddress) {
+            if (/receiver|other party|counterparty|party b|client/i.test(text) && otherPartyAddressField) {
+                values[otherPartyAddressField.key] = evmAddress;
+            } else if (/my address|our address|sender address|party a/i.test(text) && myAddressField) {
+                values[myAddressField.key] = evmAddress;
+            }
+        }
+
+        // Counterparty name from phrases like "receiver is Acme" or "other party is John"
+        const receiverNameMatch = text.match(/(?:receiver|other party|counterparty|party\s*b|client)\s+(?:is|:)?\s*([A-Za-z][A-Za-z0-9 .,'&\-]{2,})/i);
+        if (receiverNameMatch && otherPartyNameField) {
+            const candidate = receiverNameMatch[1]
+                .replace(/\b(whose|who|and|with|at|on|for)\b.*$/i, "")
+                .trim();
+            if (candidate.length > 1 && !/^0x[a-f0-9]{40}$/i.test(candidate)) {
+                values[otherPartyNameField.key] = candidate;
+            }
+        }
+
+        // Purpose from phrases like "need an NDA to ..." or "purpose is ..."
+        const purposeMatch = text.match(/(?:need\s+an?\s+nda\s+to|purpose\s+(?:of\s+disclosure\s+)?(?:is|:)|for\s+the\s+purpose\s+of)\s+(.+?)(?:\.|,|$)/i);
+        if (purposeMatch && purposeField) {
+            values[purposeField.key] = purposeMatch[1].trim();
+        }
+
+        // Duration from phrases like "for 2 years"
+        const durationMatch = text.match(/(?:duration\s*(?:is|:)?\s*|for\s+)(\d{1,2})\s*(?:years?|yrs?)/i);
+        if (durationMatch && durationField) {
+            values[durationField.key] = durationMatch[1];
+        }
+
+        // Jurisdiction from phrases like "governing law is Singapore"
+        const jurisdictionMatch = text.match(/(?:governing\s+(?:law|jurisdiction)\s*(?:is|:)?|jurisdiction\s*(?:is|:)?|under\s+the\s+laws\s+of)\s+(.+?)(?:\.|,|$)/i);
+        if (jurisdictionMatch && jurisdictionField) {
+            values[jurisdictionField.key] = jurisdictionMatch[1].trim();
+        }
 
         // Strategy 1: Try structured extraction for known patterns
         // Invoice number

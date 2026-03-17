@@ -89,7 +89,7 @@ const MOCK_ACTIVITY: RecentActivity[] = [
 
 export default function AdminDashboardPage() {
     const [stats, setStats] = useState<DashboardStats>(MOCK_STATS);
-    const [activity, setActivity] = useState<RecentActivity[]>(MOCK_ACTIVITY);
+    const [activity] = useState<RecentActivity[]>(MOCK_ACTIVITY);
     const [isLoading, setIsLoading] = useState(false);
 
     // Fetch real data from backend API
@@ -194,7 +194,7 @@ export default function AdminDashboardPage() {
             )}
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity ${isLoading ? "opacity-50" : ""}`}>
                 {/* Users */}
                 <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
                     <div className="flex items-center justify-between mb-4">

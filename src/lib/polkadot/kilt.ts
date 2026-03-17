@@ -38,7 +38,6 @@ export async function generateLightDid(): Promise<{
     // Create a hash from the random bytes for determinism
     const hashBuffer = await crypto.subtle.digest("SHA-256", randomBytes);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 
     // Generate a BIP39-like mnemonic for backup
     const wordList = [

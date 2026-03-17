@@ -142,7 +142,7 @@ export default function DashboardLayout({
 
                 <nav className="px-4 space-y-1">
                     {navItems.map((item) => {
-                        const isActive = pathname === item.href;
+                        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                         return (
                             <Link
                                 key={item.href}
@@ -163,10 +163,10 @@ export default function DashboardLayout({
                     <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-xl p-4">
                         <div className="flex items-center gap-2 mb-2">
                             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                            <span className="text-xs text-gray-400">Westend Testnet</span>
+                            <span className="text-xs text-gray-400">Polkadot Hub Testnet</span>
                         </div>
                         <p className="text-xs text-gray-500">
-                            Connected to Asset Hub for testing
+                            Connected to Polkadot Hub EVM
                         </p>
                     </div>
                 </div>
@@ -179,7 +179,7 @@ export default function DashboardLayout({
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-xl font-semibold text-white">
-                                {navItems.find((item) => item.href === pathname)?.name ||
+                                {navItems.find((item) => pathname === item.href || pathname.startsWith(item.href + "/"))?.name ||
                                     "Dashboard"}
                             </h1>
                         </div>

@@ -9,7 +9,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useIsWalletConnected, useSelectedAccount } from "@/hooks/useWallet";
+import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
 import { WalletConnect } from "@/components/chain";
 import { RevenueSplit } from "@/components/market";
 import Link from "next/link";
@@ -49,11 +49,12 @@ const MINTING_FEE = 5; // $5 DOCU gas/storage fee
 const VERIFICATION_FEE = 50; // $50 for "Blue Check" verification
 
 export default function TemplateStudioPage() {
-    const isConnected = useIsWalletConnected();
-    const selectedAccount = useSelectedAccount();
+    const isConnected = useIsEVMConnected();
+    const account = useEVMAccount();
 
     const [step, setStep] = useState<MintingStep>("create");
     const [isProcessing, setIsProcessing] = useState(false);
+    const [mintError, setMintError] = useState<string | null>(null);
     const [mintedTemplateId, setMintedTemplateId] = useState<string | null>(null);
 
     const [form, setForm] = useState<TemplateForm>({
@@ -117,8 +118,9 @@ export default function TemplateStudioPage() {
 
     // Handle minting - calls the mint API
     const handleMint = async () => {
-        if (!selectedAccount) return;
+        if (!account) return;
         setIsProcessing(true);
+        setMintError(null);
 
         try {
             // Call the mint API to create the template in the database
@@ -132,7 +134,7 @@ export default function TemplateStudioPage() {
                     content: form.content,
                     price: form.price,
                     placeholders: form.placeholders,
-                    creatorAddress: selectedAccount.address,
+                    creatorAddress: account,
                 }),
             });
 
@@ -152,7 +154,7 @@ export default function TemplateStudioPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         templateId,
-                        creatorAddress: selectedAccount.address,
+                        creatorAddress: account,
                         feePaid: VERIFICATION_FEE,
                     }),
                 });
@@ -160,6 +162,8 @@ export default function TemplateStudioPage() {
 
             setStep("success");
         } catch (error) {
+            const message = error instanceof Error ? error.message : "Minting failed. Please try again.";
+            setMintError(message);
             console.error("Minting failed:", error);
         } finally {
             setIsProcessing(false);
@@ -470,7 +474,7 @@ export default function TemplateStudioPage() {
                                         max={10000}
                                         className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 text-2xl font-bold text-white focus:border-pink-500 focus:outline-none"
                                     />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">DOCU</span>
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">$DOCU</span>
                                 </div>
                             </div>
 
@@ -534,11 +538,11 @@ export default function TemplateStudioPage() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-400">Listing Price</span>
-                                    <span className="text-white font-medium">{form.price} DOCU</span>
+                                    <span className="text-white font-medium">{form.price} $DOCU</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-400">Your Earnings (75%)</span>
-                                    <span className="text-emerald-400 font-medium">{(form.price * 0.75).toFixed(2)} DOCU per sale</span>
+                                    <span className="text-emerald-400 font-medium">{(form.price * 0.75).toFixed(2)} $DOCU per sale</span>
                                 </div>
                             </div>
 
@@ -548,17 +552,17 @@ export default function TemplateStudioPage() {
                             <div className="space-y-3">
                                 <div className="flex justify-between">
                                     <span className="text-gray-400">Minting Fee</span>
-                                    <span className="text-white">{MINTING_FEE} DOCU</span>
+                                    <span className="text-white">{MINTING_FEE} $DOCU</span>
                                 </div>
                                 {form.requestVerification && (
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Verification Fee</span>
-                                        <span className="text-white">{VERIFICATION_FEE} DOCU</span>
+                                        <span className="text-white">{VERIFICATION_FEE} $DOCU</span>
                                     </div>
                                 )}
                                 <div className="flex justify-between text-lg font-bold">
                                     <span className="text-white">Total Cost</span>
-                                    <span className="text-pink-400">{totalCost} DOCU</span>
+                                    <span className="text-pink-400">{totalCost} $DOCU</span>
                                 </div>
                             </div>
                         </div>
@@ -575,6 +579,17 @@ export default function TemplateStudioPage() {
                                 </p>
                             </div>
                         </div>
+
+                        {mintError && (
+                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <p className="text-red-400 text-sm">{mintError}</p>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex gap-4">
                             <button
@@ -599,7 +614,7 @@ export default function TemplateStudioPage() {
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                         </svg>
-                                        Mint Template ({totalCost} DOCU)
+                                        Mint Template ({totalCost} $DOCU)
                                     </>
                                 )}
                             </button>

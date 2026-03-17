@@ -11,7 +11,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSelectedAccount } from "@/hooks/useWallet";
+import { useEVMAccount } from "@/hooks/useEVMWallet";
 
 type BreachStatus = "PENDING" | "INVESTIGATING" | "CONFIRMED" | "DISMISSED" | "APPEALED";
 type BreachSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -108,7 +108,7 @@ const REASON_LABELS: Record<BreachReason, string> = {
 };
 
 export default function BreachManagementPage() {
-    const selectedAccount = useSelectedAccount();
+    const account = useEVMAccount();
     const [breaches, setBreaches] = useState<BreachReport[]>(MOCK_BREACHES);
     const [selectedBreach, setSelectedBreach] = useState<BreachReport | null>(null);
     const [filterStatus, setFilterStatus] = useState<BreachStatus | "ALL">("ALL");
@@ -166,7 +166,7 @@ export default function BreachManagementPage() {
                 body: JSON.stringify({
                     breachId: breach.id,
                     action: "investigate",
-                    reviewerAddress: selectedAccount?.address || "",
+                    reviewerAddress: account || "",
                 }),
             });
             setBreaches(prev => prev.map(b =>
@@ -190,7 +190,7 @@ export default function BreachManagementPage() {
                     action: "confirm",
                     severity: selectedSeverity,
                     resolution,
-                    reviewerAddress: selectedAccount?.address || "",
+                    reviewerAddress: account || "",
                 }),
             });
             const data = await response.json();
@@ -229,7 +229,7 @@ export default function BreachManagementPage() {
                     breachId: selectedBreach.id,
                     action: "dismiss",
                     resolution,
-                    reviewerAddress: selectedAccount?.address || "",
+                    reviewerAddress: account || "",
                 }),
             });
             const data = await response.json();
