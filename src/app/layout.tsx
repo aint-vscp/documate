@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-space-grotesk",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-mono",
 });
 
 export const metadata: Metadata = {
-  title: "DocuMate | Contract Governance & Professional Reputation",
+  title: "DocuMate | Decentralized Trust Infrastructure",
   description:
-    "Decentralized contract governance and professional reputation network built on Polkadot. Proof of Contract standard for verified freelancer CVs.",
+    "Trust infrastructure for contracts and reputation on Polkadot Hub EVM. Immutable economics, verifiable workflows, and a demo-ready governance stack.",
   keywords: [
     "blockchain",
     "Polkadot",
@@ -30,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} font-sans antialiased bg-gray-950 text-white min-h-screen`}
+        className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} font-sans antialiased bg-gray-950 text-white min-h-screen`}
       >
         {children}
       </body>

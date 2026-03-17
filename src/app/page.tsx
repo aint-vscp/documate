@@ -1,407 +1,217 @@
 /**
  * DocuMate Landing Page
- * Contract Governance & Professional Reputation Network
  */
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { WalletConnect } from "@/components/chain";
+
+const stats = [
+  { label: "Live Contracts", value: "2",        sub: "Marketplace + Staking" },
+  { label: "Testnet Status", value: "Live",     sub: "Polkadot Hub EVM" },
+  { label: "Revenue Split",  value: "75/20/5",  sub: "Immutable on-chain" },
+  { label: "Trust Layer",    value: "POC-1",    sub: "Proof of Contract" },
+];
+
+const winReasons = [
+  "Problem has measurable financial harm ($10B+ consumer fraud, $367M+ employment scams).",
+  "Contracts and core flows are testnet-validated, not static mocks.",
+  "Economics are encoded on-chain: 75% creator, 20% treasury, 5% community staking pool.",
+  "Track 1 and Track 2 narrative is unified under one trust architecture.",
+];
+
+const archItems = [
+  { label: "Identity",   value: "DID Verification",    color: "text-cyan-300" },
+  { label: "Economics",  value: "Immutable Split",      color: "text-purple-300" },
+  { label: "Validation", value: "Cryptographic Tiering",color: "text-pink-300" },
+  { label: "Reputation", value: "Staking + Slashing",   color: "text-green-300" },
+];
+
+const principles = [
+  { title: "Visibility of System Status",  copy: "Wallet, chain, tx state, and verification outcomes are always visible in one glance." },
+  { title: "Error Prevention by Design",   copy: "Pre-checks and deterministic contract rules reduce failed actions in critical flows." },
+  { title: "Recognition over Recall",      copy: "Guided demo sections and semantic labels keep judges oriented without extra explanation." },
+];
+
+const demoSteps = [
+  "Connect wallet and confirm Polkadot Hub chain state.",
+  "Verify DID and show verification badge transition.",
+  "Generate and finalize a document with hash proof.",
+  "Run a market purchase and show 75/20/5 execution.",
+  "Open whitepaper and architecture for due diligence.",
+];
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gray-950">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800/50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
+    <div className="relative min-h-screen">
+      {/* ambient top glow */}
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-96 bg-gradient-to-b from-cyan-500/[0.055] to-transparent z-0" />
+
+      {/* nav */}
+      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3.5">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
+              <Image src="/logo.png" alt="DocuMate" width={36} height={36} className="w-full h-full object-cover" priority />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-              DocuMate
-            </span>
+            <span className="text-base font-bold gradient-text">DocuMate</span>
+            <span className="neon-tag hidden md:inline-flex">Dual Track</span>
           </div>
 
-          <div className="hidden md:flex items-center gap-8">
-            <Link
-              href="#features"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              Features
-            </Link>
-            <Link
-              href="#poc"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              Proof of Contract
-            </Link>
-            <Link
-              href="#market"
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              DocuMarket
-            </Link>
+          <div className="hidden items-center gap-8 md:flex">
+            {[
+              { label: "Proof",        href: "#proof" },
+              { label: "Architecture", href: "#architecture" },
+              { label: "Demo Flow",    href: "#demo-flow" },
+              { label: "Whitepaper",   href: "/whitepaper" },
+            ].map((item) => (
+              <Link key={item.href} href={item.href}
+                className="text-sm text-white/45 hover:text-white transition-colors duration-150">
+                {item.label}
+              </Link>
+            ))}
           </div>
 
           <WalletConnect />
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-        {/* Background Effects */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-blue-500/10 rounded-full blur-2xl" />
-        </div>
+      {/* hero */}
+      <section className="relative z-10 px-6 pb-20 pt-32">
+        <div className="mx-auto w-full max-w-7xl">
+          <div className="grid gap-12 lg:grid-cols-[1.2fr_0.8fr] items-start">
 
-        <div className="relative max-w-6xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 rounded-full mb-8">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-sm text-gray-300">
-              Built on Polkadot Ecosystem
-            </span>
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-            <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-              Your Professional
-            </span>
-            <br />
-            <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
-              Reputation On-Chain
-            </span>
-          </h1>
-
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-10">
-            Build an immutable professional CV with{" "}
-            <span className="text-pink-400 font-semibold">
-              Proof of Contract
-            </span>
-            . Decentralized identity, privacy-preserved AI drafting, and an NFT
-            template marketplace.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/dashboard/profile"
-              className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-semibold rounded-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg shadow-pink-500/25 hover:shadow-xl hover:shadow-pink-500/30 flex items-center gap-2"
-            >
-              Get Started
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 7l5 5m0 0l-5 5m5-5H6"
-                />
-              </svg>
-            </Link>
-            <Link
-              href="/dashboard/market"
-              className="px-8 py-4 bg-gray-800 text-white font-semibold rounded-xl hover:bg-gray-700 transition-all duration-200 border border-gray-700"
-            >
-              Browse Templates
-            </Link>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-3xl mx-auto mt-20">
-            <div className="text-center">
-              <p className="text-4xl font-bold text-white">POC-1</p>
-              <p className="text-gray-500 text-sm mt-1">Standard Protocol</p>
-            </div>
-            <div className="text-center">
-              <p className="text-4xl font-bold text-white">TEE</p>
-              <p className="text-gray-500 text-sm mt-1">Protected AI</p>
-            </div>
-            <div className="text-center">
-              <p className="text-4xl font-bold text-white">DID</p>
-              <p className="text-gray-500 text-sm mt-1">Self-Sovereign</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section id="features" className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Powered by Polkadot
-            </h2>
-            <p className="text-gray-400 max-w-xl mx-auto">
-              Leveraging the most advanced parachains for identity, assets, and
-              confidential compute.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* KILT */}
-            <div className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6 hover:border-emerald-500/30 transition-all duration-300">
-              <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-6 h-6 text-emerald-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-white font-semibold mb-2">KILT Protocol</h3>
-              <p className="text-gray-400 text-sm">
-                Decentralized identity with Light DIDs and verifiable
-                credentials. No central server.
-              </p>
-            </div>
-
-            {/* Asset Hub */}
-            <div className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300">
-              <div className="w-12 h-12 bg-pink-500/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-6 h-6 text-pink-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-white font-semibold mb-2">Asset Hub</h3>
-              <p className="text-gray-400 text-sm">
-                $DOCU tokens and NFT templates on Polkadot&apos;s native asset
-                parachain.
-              </p>
-            </div>
-
-            {/* Phala */}
-            <div className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6 hover:border-blue-500/30 transition-all duration-300">
-              <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-6 h-6 text-blue-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-white font-semibold mb-2">Phala Network</h3>
-              <p className="text-gray-400 text-sm">
-                Privacy-first AI drafting in Trusted Execution Environments. Your
-                data stays yours.
-              </p>
-            </div>
-
-            {/* POC Standard */}
-            <div className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6 hover:border-purple-500/30 transition-all duration-300">
-              <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-6 h-6 text-purple-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-white font-semibold mb-2">POC-1 Standard</h3>
-              <p className="text-gray-400 text-sm">
-                Proof of Contract embeds work history in every payment. Immutable
-                professional CV.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* POC Section */}
-      <section
-        id="poc"
-        className="py-20 px-6 bg-gradient-to-b from-gray-900/50 to-gray-950"
-      >
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* left */}
             <div>
-              <span className="text-pink-400 font-semibold text-sm uppercase tracking-wider">
-                The Standard
-              </span>
-              <h2 className="text-3xl md:text-4xl font-bold text-white mt-2 mb-6">
-                Proof of Contract (POC-1)
-              </h2>
-              <p className="text-gray-400 mb-8">
-                Every payment on DocuMate includes a cryptographic proof of the
-                work delivered. The SHA-256 hash of your contract is embedded
-                directly in the blockchain transaction.
+              <p className="mono-label text-[10px] text-white/25 tracking-widest">Polkadot Solidity Hackathon · 2026</p>
+              <h1 className="mt-4 text-5xl font-bold leading-tight text-white md:text-6xl lg:text-7xl">
+                End Fraud with<br />
+                <span className="gradient-text glow-cyan">Verifiable</span><br />
+                <span className="gradient-text">Contracts.</span>
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-7 text-white/45">
+                DocuMate turns documents into on-chain trust assets — DID-linked identity,
+                cryptographic validation, deterministic economics, and staking-backed accountability.
               </p>
 
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-pink-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-pink-400 font-bold text-sm">1</span>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium">Sign the Contract</h4>
-                    <p className="text-gray-500 text-sm">
-                      Client and freelancer agree on scope. PDF is hashed with
-                      SHA-256.
-                    </p>
-                  </div>
-                </div>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link href="/dashboard/profile" className="brand-button">Open Dashboard</Link>
+                <Link href="/whitepaper" className="subtle-button">Whitepaper</Link>
+                <Link href="#demo-flow" className="subtle-button">60s Demo</Link>
+              </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-purple-400 font-bold text-sm">2</span>
+              {/* stats strip */}
+              <div id="proof" className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/[0.07] sm:grid-cols-4">
+                {stats.map((s, i) => (
+                  <div key={s.label}
+                    className={`bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-4 ${i > 0 ? "border-l border-white/[0.07]" : ""}`}>
+                    <p className="mono-label text-[10px] text-white/25">{s.label}</p>
+                    <p className="mt-1.5 text-xl font-bold text-white">{s.value}</p>
+                    <p className="mt-0.5 text-xs text-white/35">{s.sub}</p>
                   </div>
-                  <div>
-                    <h4 className="text-white font-medium">Pay with Proof</h4>
-                    <p className="text-gray-500 text-sm">
-                      Payment includes the contract hash in the transaction memo.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-blue-400 font-bold text-sm">3</span>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium">Build Your CV</h4>
-                    <p className="text-gray-500 text-sm">
-                      All POC-1 transactions are aggregated into your verified
-                      reputation profile.
-                    </p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl p-6 font-mono text-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-3 h-3 bg-red-500 rounded-full" />
-                <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                <div className="w-3 h-3 bg-green-500 rounded-full" />
-                <span className="text-gray-500 ml-2 text-xs">
-                  POC-1 Transaction
-                </span>
+            {/* right — why this can win */}
+            <div className="surface-card p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shrink-0" />
+                <p className="mono-label text-[10px] text-cyan-300/80">Judge Quick Read</p>
               </div>
-              <pre className="text-gray-300 overflow-x-auto">
-                <code>{`{
-  "std": "POC-1",
-  "hash": "0x8a7d3f2e...",
-  "type": "WebDev"
-}
-
-// Embedded in:
-api.tx.utility.batchAll([
-  assets.transferKeepAlive(
-    assetId: 1984,
-    to: "5GrwvaEF...",
-    amount: 1000
-  ),
-  system.remark(pocMetadata)
-])`}</code>
-              </pre>
+              <h2 className="text-xl font-bold text-white">Why this can win</h2>
+              <div className="mt-4 space-y-3">
+                {winReasons.map((point, i) => (
+                  <div key={i} className="flex gap-3">
+                    <span className="mono-label text-[10px] text-white/20 shrink-0 mt-1.5">0{i + 1}</span>
+                    <p className="text-sm text-white/55 leading-6">{point}</p>
+                  </div>
+                ))}
+              </div>
+              <Link href="/dashboard/market" className="mt-6 subtle-button w-full text-center justify-center">
+                Run Market Purchase Flow
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Ready to Build Your On-Chain Reputation?
-          </h2>
-          <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-            Connect your wallet, claim your decentralized identity, and start
-            building your verified professional history today.
-          </p>
-          <Link
-            href="/dashboard/profile"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-semibold rounded-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
-          >
-            Launch App
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 7l5 5m0 0l-5 5m5-5H6"
-              />
-            </svg>
-          </Link>
+      {/* architecture */}
+      <section id="architecture" className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-20">
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="surface-card p-7">
+            <p className="mono-label text-[10px] text-white/25">System Architecture</p>
+            <h3 className="mt-2 text-2xl font-bold text-white">Hub-and-Spoke Trust Stack</h3>
+            <p className="mt-4 text-sm text-white/45 leading-7">
+              Next.js orchestrates UX, Polkadot Hub EVM enforces immutable logic,
+              and validation pipelines provide signature-aware trust tiers.
+            </p>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              {archItems.map((item) => (
+                <div key={item.label}
+                  className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3.5 hover:bg-white/[0.04] transition-colors">
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400/60 shrink-0" />
+                  <div>
+                    <p className="mono-label text-[10px] text-white/25">{item.label}</p>
+                    <p className={`text-sm font-semibold ${item.color}`}>{item.value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-7">
+            <p className="mono-label text-[10px] text-white/25">UX Quality Rules</p>
+            <h3 className="mt-2 text-2xl font-bold text-white">Demo-first interaction design</h3>
+            <div className="mt-5 space-y-3">
+              {principles.map((item, i) => (
+                <div key={item.title} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 hover:bg-white/[0.04] transition-colors">
+                  <div className="flex items-baseline gap-3">
+                    <span className="mono-label text-[10px] text-white/20 shrink-0">0{i + 1}</span>
+                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                  </div>
+                  <p className="mt-2 pl-7 text-xs text-white/45 leading-6">{item.copy}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-gray-800/50">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-            <span className="font-semibold text-white">DocuMate</span>
+      {/* demo flow */}
+      <section id="demo-flow" className="relative z-10 border-y border-white/[0.05] bg-white/[0.01] px-6 py-16">
+        <div className="mx-auto w-full max-w-7xl">
+          <div className="mb-10 text-center">
+            <p className="mono-label text-[10px] text-white/25">Judge Demo Path</p>
+            <h3 className="mt-2 text-3xl font-bold text-white">Show value in under 60 seconds</h3>
           </div>
-          <p className="text-gray-500 text-sm">
-            Built for Polkadot Hackathon 2025
-          </p>
+          <div className="grid gap-px overflow-hidden rounded-xl border border-white/[0.07] md:grid-cols-5">
+            {demoSteps.map((step, i) => (
+              <div key={step} className="bg-white/[0.02] p-5 hover:bg-white/[0.04] transition-colors">
+                <p className="mono-label text-[10px] text-cyan-400/55">Step 0{i + 1}</p>
+                <p className="mt-3 text-xs text-white/50 leading-6">{step}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link href="/dashboard/profile" className="brand-button">Start Demo</Link>
+            <Link href="/dashboard/market" className="subtle-button">Open DocuMarket</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* footer */}
+      <footer className="relative z-10 px-6 py-8">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between border-t border-white/[0.06] pt-6">
+          <div>
+            <p className="text-sm font-bold text-white">DocuMate</p>
+            <p className="mt-0.5 text-xs text-white/25">Decentralized reputation and document trust infrastructure.</p>
+          </div>
+          <div className="flex items-center gap-5 text-xs text-white/35">
+            <Link href="/whitepaper" className="hover:text-white transition-colors">Whitepaper</Link>
+            <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
+          </div>
         </div>
       </footer>
     </div>

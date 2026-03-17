@@ -5,6 +5,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { WalletConnect } from "@/components/chain";
 
@@ -114,29 +115,22 @@ export default function DashboardLayout({
     const pathname = usePathname();
 
     return (
-        <div className="min-h-screen bg-gray-950 flex">
+        <div className="relative min-h-screen bg-black flex">
             {/* Sidebar */}
-            <aside className="fixed left-0 top-0 h-full w-64 bg-gray-900/50 border-r border-gray-800/50 backdrop-blur-xl z-40">
-                <div className="p-6">
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl flex items-center justify-center">
-                            <svg
-                                className="w-6 h-6 text-white"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                            </svg>
+            <aside className="fixed left-0 top-0 h-full w-64 bg-black border-r border-white/[0.06] z-40">
+                <div className="px-5 py-5 border-b border-white/[0.05]">
+                    <Link href="/" className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
+                            <Image
+                                src="/logo.png"
+                                alt="DocuMate logo"
+                                width={32}
+                                height={32}
+                                className="h-full w-full object-cover"
+                                priority
+                            />
                         </div>
-                        <span className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-                            DocuMate
-                        </span>
+                        <span className="text-base font-bold gradient-text">DocuMate</span>
                     </Link>
                 </div>
 
@@ -148,8 +142,8 @@ export default function DashboardLayout({
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                    ? "bg-gradient-to-r from-pink-500/20 to-purple-500/20 text-white border border-pink-500/30"
-                                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                                    ? "bg-gradient-to-r from-pink-500/20 via-orange-500/20 to-cyan-500/20 text-white border border-pink-500/40"
+                                    : "text-slate-300 hover:text-white hover:bg-slate-800/60"
                                     }`}
                             >
                                 {item.icon}
@@ -159,15 +153,24 @@ export default function DashboardLayout({
                     })}
                 </nav>
 
-                <div className="absolute bottom-6 left-4 right-4">
-                    <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                            <span className="text-xs text-gray-400">Polkadot Hub Testnet</span>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                            Connected to Polkadot Hub EVM
-                        </p>
+                <div className="px-3 mt-4 space-y-1.5">
+                    <Link href="/whitepaper" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/40 hover:text-white/80 hover:bg-white/[0.03] rounded-md border-l-2 border-transparent pl-[14px] transition-all duration-150">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span>Whitepaper</span>
+                    </Link>
+                    <Link href="/" className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/40 hover:text-white/80 hover:bg-white/[0.03] rounded-md border-l-2 border-transparent pl-[14px] transition-all duration-150">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                        <span>Landing</span>
+                    </Link>
+                </div>
+
+                <div className="absolute bottom-5 left-3 right-3">
+                    <div className="flex items-center gap-2 rounded-md border border-white/[0.06] px-3.5 py-2.5">
+                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400" />
+                        </span>
+                        <span className="mono-label text-[10px] text-white/35">Polkadot Hub Testnet</span>
                     </div>
                 </div>
             </aside>
@@ -175,13 +178,14 @@ export default function DashboardLayout({
             {/* Main Content */}
             <main className="flex-1 ml-64">
                 {/* Top Bar */}
-                <header className="sticky top-0 z-30 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800/50 px-8 py-4">
+                <header className="sticky top-0 z-30 bg-black/90 backdrop-blur-xl border-b border-white/[0.06] px-8 py-3.5">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-xl font-semibold text-white">
+                            <h1 className="text-base font-semibold text-white">
                                 {navItems.find((item) => pathname === item.href || pathname.startsWith(item.href + "/"))?.name ||
                                     "Dashboard"}
                             </h1>
+                            <p className="mono-label text-[10px] text-white/30 mt-0.5">DocuMate · Demo Mode</p>
                         </div>
                         <WalletConnect />
                     </div>

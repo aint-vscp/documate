@@ -8,11 +8,12 @@
  */
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, type ChangeEvent } from "react";
 import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
 import { WalletConnect } from "@/components/chain";
 import { RevenueSplit } from "@/components/market";
 import Link from "next/link";
+import Image from "next/image";
 
 type MintingStep = "create" | "preview" | "pricing" | "mint" | "success";
 type TemplateCategory = "LEGAL" | "CREATIVE" | "ENGINEERING";
@@ -37,12 +38,12 @@ interface TemplateForm {
 const CATEGORY_OPTIONS: {
     id: TemplateCategory;
     label: string;
-    emoji: string;
+    code: string;
     color: string
 }[] = [
-        { id: "LEGAL", label: "Legal", emoji: "⚖️", color: "from-blue-500 to-indigo-600" },
-        { id: "CREATIVE", label: "Creative", emoji: "🎨", color: "from-pink-500 to-purple-600" },
-        { id: "ENGINEERING", label: "Engineering", emoji: "⚙️", color: "from-green-500 to-emerald-600" },
+        { id: "LEGAL", label: "Legal", code: "LGL", color: "from-blue-500 to-indigo-600" },
+        { id: "CREATIVE", label: "Creative", code: "CR8", color: "from-pink-500 to-purple-600" },
+        { id: "ENGINEERING", label: "Engineering", code: "ENG", color: "from-green-500 to-emerald-600" },
     ];
 
 const MINTING_FEE = 5; // $5 DOCU gas/storage fee
@@ -56,6 +57,7 @@ export default function TemplateStudioPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [mintError, setMintError] = useState<string | null>(null);
     const [mintedTemplateId, setMintedTemplateId] = useState<string | null>(null);
+    const imageInputRef = useRef<HTMLInputElement | null>(null);
 
     const [form, setForm] = useState<TemplateForm>({
         title: "",
@@ -91,6 +93,63 @@ export default function TemplateStudioPage() {
             placeholders: prev.placeholders.filter(p => p.key !== key),
         }));
     }, []);
+
+    const appendToContent = useCallback((text: string) => {
+        setForm(prev => ({
+            ...prev,
+            content: prev.content.trimEnd() ? `${prev.content.trimEnd()}\n\n${text}` : text,
+        }));
+    }, []);
+
+    const handleInsertHeading = useCallback(() => {
+        appendToContent("## Section Title\nAdd your clause details here.");
+    }, [appendToContent]);
+
+    const handleInsertClause = useCallback(() => {
+        appendToContent("### Clause\n1. Add your first obligation.\n2. Add your second obligation.");
+    }, [appendToContent]);
+
+    const handleInsertSignatureBlock = useCallback(() => {
+        appendToContent("---\n\nSigned by {{party_a_name}}\nDate: {{effective_date}}\n\nSigned by {{party_b_name}}\nDate: {{effective_date}}");
+    }, [appendToContent]);
+
+    const handleImageUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            setMintError("Only image files can be inserted into templates.");
+            event.target.value = "";
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setMintError("Image too large. Please use an image smaller than 5MB.");
+            event.target.value = "";
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = typeof reader.result === "string" ? reader.result : "";
+            if (!result) {
+                setMintError("Failed to load image. Please try again.");
+                return;
+            }
+
+            appendToContent(`![${file.name}](${result})`);
+            setMintError(null);
+        };
+
+        reader.onerror = () => {
+            setMintError("Failed to read the selected image.");
+        };
+
+        reader.readAsDataURL(file);
+        event.target.value = "";
+    }, [appendToContent]);
+
+    const previewLines = form.content.split("\n");
 
     // Extract placeholders from content
     const detectPlaceholders = useCallback(() => {
@@ -173,8 +232,8 @@ export default function TemplateStudioPage() {
     // Not connected view
     if (!isConnected) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
-                <div className="text-center max-w-md">
+            <div className="flex items-center justify-center p-6">
+                <div className="surface-card text-center max-w-md p-8">
                     <div className="w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <svg className="w-10 h-10 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -191,10 +250,10 @@ export default function TemplateStudioPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-950 p-6">
+        <div className="p-6">
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
-                <div className="mb-8">
+                <div className="surface-card p-6 mb-8">
                     <Link href="/dashboard/market" className="text-gray-400 hover:text-white text-sm flex items-center gap-2 mb-4">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -242,7 +301,7 @@ export default function TemplateStudioPage() {
                 {step === "create" && (
                     <div className="space-y-6">
                         {/* Basic Info */}
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <h2 className="text-lg font-semibold text-white mb-4">Basic Information</h2>
 
                             <div className="space-y-4">
@@ -280,7 +339,7 @@ export default function TemplateStudioPage() {
                                                         : "bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-gray-600"
                                                     }`}
                                             >
-                                                <span className="text-2xl">{cat.emoji}</span>
+                                                <span className="text-xs font-semibold px-2 py-1 rounded-md bg-black/20 border border-white/20">{cat.code}</span>
                                                 <span className="font-medium">{cat.label}</span>
                                             </button>
                                         ))}
@@ -290,32 +349,72 @@ export default function TemplateStudioPage() {
                         </div>
 
                         {/* Content */}
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-lg font-semibold text-white">Template Content</h2>
-                                <button
-                                    onClick={detectPlaceholders}
-                                    className="text-sm text-pink-400 hover:text-pink-300"
-                                >
-                                    Detect Placeholders
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={detectPlaceholders}
+                                        className="text-sm text-pink-400 hover:text-pink-300"
+                                    >
+                                        Detect Placeholders
+                                    </button>
+                                    <button
+                                        onClick={() => imageInputRef.current?.click()}
+                                        className="text-sm px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700"
+                                    >
+                                        Add Image
+                                    </button>
+                                </div>
                             </div>
 
                             <p className="text-gray-400 text-sm mb-4">
                                 Use {`{{placeholder_name}}`} syntax for variable fields. Example: {`{{client_name}}`}, {`{{effective_date}}`}
                             </p>
 
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <button
+                                    onClick={handleInsertHeading}
+                                    className="text-xs px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700"
+                                >
+                                    Insert Heading
+                                </button>
+                                <button
+                                    onClick={handleInsertClause}
+                                    className="text-xs px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700"
+                                >
+                                    Insert Clause List
+                                </button>
+                                <button
+                                    onClick={handleInsertSignatureBlock}
+                                    className="text-xs px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700"
+                                >
+                                    Insert Signature Block
+                                </button>
+                            </div>
+
+                            <input
+                                ref={imageInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="hidden"
+                            />
+
                             <textarea
                                 value={form.content}
                                 onChange={(e) => setForm(prev => ({ ...prev, content: e.target.value }))}
                                 placeholder={`NON-DISCLOSURE AGREEMENT\n\nThis Agreement is entered into as of {{effective_date}} between:\n\nParty A: {{party_a_name}}\nParty B: {{party_b_name}}\n\n...`}
                                 rows={15}
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm placeholder-gray-600 focus:border-pink-500 focus:outline-none resize-none"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:border-pink-500 focus:outline-none resize-y leading-7"
                             />
+                            <p className="mt-3 text-xs text-gray-500">
+                                Tip: uploaded images are embedded directly into your template. Keep visuals lightweight for faster loading.
+                            </p>
                         </div>
 
                         {/* Placeholders */}
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <h2 className="text-lg font-semibold text-white mb-4">Placeholders</h2>
 
                             {/* Detected/Added Placeholders */}
@@ -410,13 +509,13 @@ export default function TemplateStudioPage() {
                 {/* Step 2: Preview */}
                 {step === "preview" && (
                     <div className="space-y-6">
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <h2 className="text-lg font-semibold text-white mb-4">Preview Your Template</h2>
 
                             <div className="flex items-start gap-4 mb-6">
                                 <div className={`w-16 h-16 bg-gradient-to-br ${CATEGORY_OPTIONS.find(c => c.id === form.category)?.color} rounded-xl flex items-center justify-center`}>
                                     <span className="text-3xl">
-                                        {CATEGORY_OPTIONS.find(c => c.id === form.category)?.emoji}
+                                        {CATEGORY_OPTIONS.find(c => c.id === form.category)?.code}
                                     </span>
                                 </div>
                                 <div>
@@ -433,10 +532,39 @@ export default function TemplateStudioPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-4 max-h-96 overflow-y-auto">
-                                <pre className="text-gray-300 text-sm whitespace-pre-wrap font-mono">
-                                    {form.content}
-                                </pre>
+                            <div className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-4 max-h-[32rem] overflow-y-auto space-y-3">
+                                {previewLines.map((line, index) => {
+                                    const imageMatch = line.match(/^!\[(.*?)\]\((.+)\)$/);
+                                    if (imageMatch) {
+                                        const [, alt, src] = imageMatch;
+                                        return (
+                                            <div key={`img-${index}`} className="inline-block rounded-lg border border-gray-700/60 overflow-hidden">
+                                                <Image
+                                                    src={src}
+                                                    alt={alt || "Template image"}
+                                                    width={720}
+                                                    height={400}
+                                                    unoptimized
+                                                    className="h-auto max-h-72 w-auto"
+                                                />
+                                            </div>
+                                        );
+                                    }
+
+                                    if (line.startsWith("## ")) {
+                                        return <h3 key={`h2-${index}`} className="text-lg font-semibold text-white">{line.replace(/^##\s*/, "")}</h3>;
+                                    }
+
+                                    if (line.startsWith("### ")) {
+                                        return <h4 key={`h3-${index}`} className="text-base font-semibold text-gray-100">{line.replace(/^###\s*/, "")}</h4>;
+                                    }
+
+                                    if (!line.trim()) {
+                                        return <div key={`spacer-${index}`} className="h-2" />;
+                                    }
+
+                                    return <p key={`p-${index}`} className="text-gray-300 text-sm whitespace-pre-wrap">{line}</p>;
+                                })}
                             </div>
                         </div>
 
@@ -460,7 +588,7 @@ export default function TemplateStudioPage() {
                 {/* Step 3: Pricing */}
                 {step === "pricing" && (
                     <div className="space-y-6">
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <h2 className="text-lg font-semibold text-white mb-4">Set Your Price</h2>
 
                             <div className="mb-6">
@@ -483,7 +611,7 @@ export default function TemplateStudioPage() {
                         </div>
 
                         {/* Verification Option */}
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <label className="flex items-start gap-4 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -523,7 +651,7 @@ export default function TemplateStudioPage() {
                 {/* Step 4: Mint */}
                 {step === "mint" && (
                     <div className="space-y-6">
-                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
+                        <div className="surface-card p-6">
                             <h2 className="text-lg font-semibold text-white mb-4">Confirm Minting</h2>
 
                             {/* Summary */}

@@ -252,6 +252,28 @@ export default function MarketPage() {
 
     return (
         <div className="space-y-6">
+            <section className="surface-card p-6">
+                <p className="mono-label text-xs text-cyan-200">Marketplace Engine</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">DocuMarket Live Purchase Flow</h2>
+                <p className="mt-2 text-sm text-slate-300">
+                    Browse templates and execute deterministic 75/20/5 settlement on-chain.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                        <p className="mono-label text-[11px] text-slate-400">Templates</p>
+                        <p className="mt-1 text-sm text-white font-medium">{filteredTemplates.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                        <p className="mono-label text-[11px] text-slate-400">Wallet</p>
+                        <p className="mt-1 text-sm text-white font-medium">{account ? `${account.slice(0, 6)}...${account.slice(-4)}` : "Not Connected"}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                        <p className="mono-label text-[11px] text-slate-400">Settlement Rule</p>
+                        <p className="mt-1 text-sm text-pink-300 font-medium">75 / 20 / 5</p>
+                    </div>
+                </div>
+            </section>
+
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -282,7 +304,7 @@ export default function MarketPage() {
             </div>
 
             {/* Revenue Split Banner */}
-            <div className="bg-gradient-to-r from-pink-500/5 to-purple-500/5 border border-pink-500/20 rounded-2xl p-4">
+            <div className="surface-card p-4">
                 <div className="flex items-center gap-6 flex-wrap">
                     <span className="text-gray-400 text-sm font-medium">
                         THE IRON RULES:
@@ -360,7 +382,7 @@ export default function MarketPage() {
                     {filteredTemplates.map((template) => (
                         <div
                             key={template.id}
-                            className="group bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl overflow-hidden hover:border-pink-500/30 transition-all duration-300"
+                            className="group surface-card overflow-hidden hover:border-pink-500/30 transition-all duration-300"
                         >
                             {/* Preview Header */}
                             <div className="h-32 bg-gradient-to-br from-gray-700/50 to-gray-800/50 flex items-center justify-center relative">
@@ -472,7 +494,7 @@ export default function MarketPage() {
             {/* Purchase Confirmation Modal */}
             {purchaseTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-gray-900 border border-gray-700/50 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                    <div className="surface-card p-6 max-w-md w-full mx-4 shadow-2xl">
                         <h3 className="text-xl font-bold text-white mb-2">
                             Confirm Purchase
                         </h3>

@@ -563,14 +563,14 @@ export default function DocuWriterPage() {
     }
 
     return (
-        <div className="h-[calc(100vh-140px)] flex flex-col">
+        <div className="h-[calc(100vh-140px)] flex flex-col gap-4">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <div className="surface-card flex items-center justify-between p-4 flex-shrink-0">
                 <div className="flex items-center gap-4">
                     {viewMode === "editor" && (
                         <button
                             onClick={handleBackToGallery}
-                            className="p-2 rounded-lg bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors"
+                            className="p-2 rounded-lg bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -598,7 +598,7 @@ export default function DocuWriterPage() {
                     )}
                     {/* TEE Status */}
                     {teeStatus && (
-                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded-full">
+                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800/70 rounded-full">
                             <div className={`w-2 h-2 rounded-full ${teeStatus.available ? "bg-green-400" : "bg-yellow-400"} animate-pulse`} />
                             <span className="text-xs text-gray-400">
                                 TEE: {teeStatus.mode === "mock" ? "Mock" : "Live"}
@@ -633,7 +633,7 @@ export default function DocuWriterPage() {
                         </div>
 
                         {/* AI Sidebar - Desktop */}
-                        <div className="hidden lg:flex w-[18%] min-w-[280px] max-w-[360px] flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
+                        <div className="hidden lg:flex w-[18%] min-w-[280px] max-w-[360px] flex-col surface-card overflow-hidden">
                             <AIChatPanel
                                 messages={messages}
                                 input={input}
@@ -649,7 +649,7 @@ export default function DocuWriterPage() {
                     <>
                         {/* Editor mode: Fields | Preview | AI Chat side-by-side */}
                         {/* Left: Placeholder Fields */}
-                        <div className="w-[280px] min-w-[250px] flex-shrink-0 flex flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
+                        <div className="w-[280px] min-w-[250px] flex-shrink-0 flex flex-col surface-card overflow-hidden">
                             <div className="px-4 py-3 border-b border-gray-700/50 flex-shrink-0">
                                 <h3 className="text-sm font-semibold text-white">Document Fields</h3>
                                 <p className="text-xs text-gray-500 mt-0.5">Edit values to update the preview</p>
@@ -678,7 +678,7 @@ export default function DocuWriterPage() {
                         </div>
 
                         {/* Right: AI Chat Sidebar - Desktop */}
-                        <div className="hidden lg:flex w-[280px] min-w-[250px] max-w-[320px] flex-shrink-0 flex-col bg-gray-800/30 border border-gray-700/50 rounded-2xl overflow-hidden">
+                        <div className="hidden lg:flex w-[280px] min-w-[250px] max-w-[320px] flex-shrink-0 flex-col surface-card overflow-hidden">
                             <AIChatPanel
                                 messages={messages}
                                 input={input}
@@ -700,7 +700,7 @@ export default function DocuWriterPage() {
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                         onClick={() => setIsMobileChatOpen(false)}
                     />
-                    <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-gray-900 border-l border-gray-700/50 flex flex-col animate-slide-in-right">
+                    <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-slate-950 border-l border-slate-700/60 flex flex-col animate-slide-in-right">
                         <div className="flex items-center justify-between p-4 border-b border-gray-700/50">
                             <h3 className="text-lg font-semibold text-white">AI Assistant</h3>
                             <button

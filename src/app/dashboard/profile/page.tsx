@@ -254,9 +254,35 @@ export default function ProfilePage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-5xl mx-auto space-y-6">
+            <section className="surface-card p-6">
+                <p className="mono-label text-xs text-cyan-200">Identity and Reputation</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Professional Trust Profile</h2>
+                <p className="mt-2 text-sm text-slate-300">
+                    Manage DID verification, staking-backed reputation, and breach reporting from one control plane.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                        <p className="mono-label text-[11px] text-slate-400">Wallet</p>
+                        <p className="mt-1 text-sm text-white font-medium">{account?.slice(0, 6)}...{account?.slice(-4)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                        <p className="mono-label text-[11px] text-slate-400">Verification</p>
+                        <p className={`mt-1 text-sm font-medium ${evmVerified ? "text-emerald-400" : "text-yellow-400"}`}>
+                            {evmVerified ? "On-Chain Verified" : "Pending Verification"}
+                        </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
+                        <p className="mono-label text-[11px] text-slate-400">Stake Status</p>
+                        <p className={`mt-1 text-sm font-medium ${stakeInfo?.staked ? "text-emerald-400" : "text-slate-300"}`}>
+                            {stakeInfo?.staked ? "Active" : "Not Staked"}
+                        </p>
+                    </div>
+                </div>
+            </section>
+
             {/* Identity Section */}
-            <section className="bg-gradient-to-br from-gray-800/30 to-gray-900/30 border border-gray-700/50 rounded-2xl p-6">
+            <section className="surface-card p-6">
                 <div className="flex items-start justify-between mb-6">
                     <div>
                         <h2 className="text-xl font-semibold text-white mb-1">
@@ -434,7 +460,7 @@ export default function ProfilePage() {
             </section>
 
             {/* On-Chain Verification */}
-            <section className="bg-gray-800/30 border border-gray-700/50 rounded-2xl p-6">
+            <section className="surface-card p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">
                     On-Chain Verification (Polkadot Hub)
                 </h2>
@@ -470,7 +496,7 @@ export default function ProfilePage() {
             </section>
 
             {/* Connected Wallet */}
-            <section className="bg-gray-800/30 border border-gray-700/50 rounded-2xl p-6">
+            <section className="surface-card p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">
                     Connected Wallet
                 </h2>
@@ -651,7 +677,7 @@ export default function ProfilePage() {
             </section>
 
             {/* Report Breach Section */}
-            <section className="bg-gray-800/30 border border-gray-700/50 rounded-2xl p-6">
+            <section className="surface-card p-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-lg font-semibold text-white mb-1">Report a Breach</h2>
