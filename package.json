@@ -14,7 +14,7 @@
     "demo:fallback-check": "node scripts/demo-fallback-check.js",
     "release:checklist": "npm run lint && npm run contracts:compile && npm run contracts:test && npm run testnet:config-check && npm run demo:fallback-check",
     "video:studio": "npx remotion studio",
-    "video:render": "npx remotion render HackathonDemo75 docs/demo-video.mp4",
+    "video:render": "npx remotion render HackathonDemo90 docs/demo-video.mp4",
     "video:still": "npx remotion still PitchVideo out/thumbnail.png --frame=0"
   },
   "dependencies": {
