@@ -5,32 +5,31 @@
 ## Test Framework
 
 **Runner:**
-- Hardhat test runner (Mocha under Hardhat toolbox) driven by `hardhat test` script in `package.json`.
-- Config and test paths are defined in `hardhat.config.js` (`paths.tests: "./test"`).
+- Hardhat test runner (Mocha under Hardhat) with Chai matchers.
+- Config: `hardhat.config.js`
 
 **Assertion Library:**
-- Chai (`expect`) with Hardhat chai matchers (event and balance assertions), evidenced in `test/documate-track2.test.js`.
+- Chai (`expect`) with Hardhat-specific matchers like `.to.changeEtherBalances`, `.to.emit`, `.to.be.revertedWithCustomError`.
 
 **Run Commands:**
 ```bash
-npm run contracts:test        # Run smart contract tests (Hardhat)
-npm run contracts:compile     # Compile contracts before test execution
-npm run release:checklist     # Lint + compile + tests + testnet/demo checks
+npm run contracts:test      # Run smart contract tests (hardhat test)
+npm run testnet:smoke       # Execute write-path testnet smoke validation script
+npm run release:checklist   # Run lint + compile + tests + environment checks
 ```
 
 ## Test File Organization
 
 **Location:**
-- Contract tests are in top-level `test/` directory, not co-located with source modules.
-- Observed suite: `test/documate-track2.test.js`.
+- Contract tests live in top-level `test/` directory as configured in `hardhat.config.js` (`paths.tests = "./test"`).
 
 **Naming:**
-- Uses `*.test.js` naming convention for Hardhat test discovery.
+- `*.test.js` pattern in `test/` (current file: `test/documate-track2.test.js`).
 
 **Structure:**
 ```
 test/
-  documate-track2.test.js
+└── documate-track2.test.js
 ```
 
 ## Test Structure
@@ -40,60 +39,60 @@ test/
 describe("DocuMate Track 2 Prototype", function () {
   describe("DocuMateMarketplace", function () {
     it("enforces 75/20/5 split in purchase(address)", async function () {
-      // deploy + exercise + assert
+      // deploy
+      // arrange
+      // assert balances/events/errors
     });
   });
 
   describe("DocuMateStaking", function () {
     it("stakes then slashes after validated breach", async function () {
-      // deploy + exercise + assert
+      // deploy, execute breach flow, assert pool/stake state
     });
   });
 });
 ```
-Pattern source: `test/documate-track2.test.js`.
 
 **Patterns:**
-- Setup pattern: acquire signers via `await ethers.getSigners()`, deploy via `ethers.getContractFactory(...).deploy(...)`, then `waitForDeployment()`.
-- Teardown pattern: explicit teardown hooks are not used; each test deploys fresh contract instances.
-- Assertion pattern:
-  - state assertions (`expect(info[0]).to.equal(false)`)
-  - event assertions (`to.emit(..., "TemplateMinted")`)
-  - revert assertions (`to.be.revertedWithCustomError(...)`)
-  - balance delta assertions (`to.changeEtherBalances(...)`)
+- Setup pattern: deploy fresh contracts per test via `ethers.getContractFactory(...).deploy(...)`.
+- Teardown pattern: no explicit teardown; tests rely on isolated deployments and Hardhat network reset behavior.
+- Assertion pattern: state/effect assertions over event and balance changes rather than snapshots.
 
 ## Mocking
 
 **Framework:**
-- No JavaScript mocking library detected (no Jest/Vitest mock APIs in repo test code).
+- No external mocking framework (no Sinon/Jest/Vitest mocks detected).
+- Functional mocking is done through on-chain feature flags and contract methods.
 
 **Patterns:**
 ```javascript
 await marketplace.setUseMockVerification(true);
-await marketplace.setMockVerified(buyer.address, true);
+await marketplace.setMockVerified(user.address, true);
+
+await expect(
+  marketplace.connect(user).mintTemplate("ipfs://template", "LEGAL", ethers.parseEther("1"))
+).to.emit(marketplace, "TemplateMinted");
 ```
-Pattern source: `test/documate-track2.test.js`.
 
 **What to Mock:**
-- Contract-level verification behavior is toggled through explicit on-contract mock switches (`setUseMockVerification`, `setMockVerified`) instead of external mocking frameworks.
+- Identity verification precompile is toggled to mock mode in tests (`setUseMockVerification`, `setMockVerified`).
+- External integration behavior is emulated in non-test scripts/API routes (mock TEE/IPFS behavior), but not via dedicated unit mock libraries.
 
 **What NOT to Mock:**
-- Core token/payment economics and stake-slash flow are executed against deployed in-memory contracts and asserted end-to-end in the test suite (`purchase`, `purchaseTemplate`, `stakeReputation`, `validateBreach`) in `test/documate-track2.test.js`.
+- Core token economics and payout mechanics are tested against real contract execution (e.g., 75/20/5 split assertions with ether balance deltas).
 
 ## Fixtures and Factories
 
 **Test Data:**
 ```javascript
+const [owner, creator, buyer, treasury] = await ethers.getSigners();
 const payment = ethers.parseEther("1");
 const creatorAmount = (payment * 75n) / 100n;
-const treasuryAmount = (payment * 20n) / 100n;
-const burnAmount = payment - creatorAmount - treasuryAmount;
 ```
-Pattern source: `test/documate-track2.test.js`.
 
 **Location:**
-- No separate fixture or factory modules detected.
-- Data setup is inline per test case in `test/documate-track2.test.js`.
+- No shared fixtures/factory utilities detected.
+- Test data and deployments are inlined inside each `it(...)` block in `test/documate-track2.test.js`.
 
 ## Coverage
 
@@ -101,37 +100,35 @@ Pattern source: `test/documate-track2.test.js`.
 
 **View Coverage:**
 ```bash
-# Not configured in package scripts or hardhat config.
-# No dedicated coverage tool (e.g., solidity-coverage, jest --coverage) detected.
+Not configured in package scripts.
+No repository-level coverage threshold file detected.
 ```
 
 ## Test Types
 
 **Unit Tests:**
-- Not detected for frontend/backend TypeScript modules under `src/`.
+- Solidity behavior-focused tests in `test/documate-track2.test.js` validate contract functions and error paths in isolation from frontend/API.
 
 **Integration Tests:**
-- Smart contract integration tests are present in `test/documate-track2.test.js`, covering contract interactions and economic flows with deployed instances.
-
-**E2E Tests:**
-- Browser E2E framework configuration is not detected (`playwright.config.*` and `cypress.config.*` not present in workspace).
-- Operational testnet checks exist as script-based validations rather than test-runner E2E:
+- Script-based integration/smoke checks against RPC and deployed contracts:
   - `scripts/testnet-smoke-track2.js`
   - `scripts/demo-fallback-check.js`
-  - `scripts/testnet-config-check.js`
+- These scripts validate deployment wiring, chain ID, contract ownership/state, and selected end-to-end transactions.
+
+**E2E Tests:**
+- Not used for web UI/API flows (no Playwright/Cypress config or first-party specs detected in repository source).
 
 ## Common Patterns
 
 **Async Testing:**
 ```javascript
-const marketplace = await Factory.deploy(treasury.address, burn, ethers.ZeroAddress);
-await marketplace.waitForDeployment();
-
 await expect(() =>
   marketplace.connect(buyer).purchase(creator.address, { value: payment })
-).to.changeEtherBalances(...);
+).to.changeEtherBalances(
+  [buyer, creator, treasury, burn],
+  [payment * -1n, creatorAmount, treasuryAmount, burnAmount]
+);
 ```
-Pattern source: `test/documate-track2.test.js`.
 
 **Error Testing:**
 ```javascript
@@ -139,7 +136,6 @@ await expect(
   marketplace.connect(user).mintTemplate("ipfs://template", "LEGAL", ethers.parseEther("1"))
 ).to.be.revertedWithCustomError(marketplace, "NotVerified");
 ```
-Pattern source: `test/documate-track2.test.js`.
 
 ---
 

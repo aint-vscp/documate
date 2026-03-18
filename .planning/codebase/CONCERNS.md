@@ -4,139 +4,167 @@
 
 ## Tech Debt
 
-**MVP Mock/Placeholder Logic Embedded in Core Flows:**
-- Issue: Production-facing routes and pages still rely on mock behavior and fallback values, which can hide integration failures and create misleading runtime behavior.
-- Files: `src/app/api/phala-proxy/route.ts`, `src/lib/polkadot/phala.ts`, `src/app/admin/page.tsx`, `src/app/admin/verification/page.tsx`, `src/app/admin/breaches/page.tsx`, `src/app/dashboard/market/page.tsx`, `src/app/api/admin/stats/route.ts`
-- Impact: Users and admins can see successful-looking flows even when real infrastructure fails; debugging and incident detection become harder.
-- Fix approach: Introduce explicit environment gates for mock mode, disable mock-only paths in non-demo environments, and fail closed for admin metrics/data APIs when backing services are unavailable.
+**Hybrid document persistence split across localStorage + ad-hoc SQL table:**
+- Issue: Document data is persisted both in browser localStorage and in a manually managed `SharedDocument` SQL table created at runtime, instead of a single Prisma-managed model.
+- Files: `src/lib/document/documentStore.ts`, `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`, `prisma/schema.prisma`
+- Impact: Higher risk of data drift, duplicate conflict logic, brittle migrations, and hard-to-debug state mismatches between client and server records.
+- Fix approach: Add a first-class `SharedDocument` Prisma model, migrate APIs to parameterized Prisma queries, and keep localStorage as a cache only.
 
-**Large Multi-Responsibility UI Modules:**
-- Issue: Several page components exceed typical maintainability thresholds and contain state, orchestration, and rendering in single files.
-- Files: `src/app/dashboard/filing/page.tsx` (1123 lines), `src/app/dashboard/profile/page.tsx` (987 lines), `src/app/dashboard/studio/page.tsx` (707 lines), `src/app/dashboard/market/page.tsx` (630 lines), `src/components/document/SignaturePanel.tsx` (545 lines)
-- Impact: High regression risk during edits, slower onboarding, and difficult targeted testing.
-- Fix approach: Extract container/hooks/presentational splits, isolate side effects into services, and add module-level tests during decomposition.
+**Production-critical flows still use MVP placeholders/comments:**
+- Issue: Core auth/indexer paths include explicit "In production" placeholders and non-persistent behavior.
+- Files: `src/lib/auth/siwp.ts`, `src/app/api/auth/challenge/route.ts`, `src/app/api/auth/verify/route.ts`, `src/lib/indexer/handlers/poc.ts`
+- Impact: Replay protection, session integrity, and reputation indexing are not fully implemented in runtime behavior.
+- Fix approach: Replace placeholder logic with persisted challenge/session storage and complete indexer write paths.
 
-**Data Model Split Between Browser Storage and Server DB:**
-- Issue: Documents, templates, profile data, signatures, and reputation data are persisted heavily in browser storage while partial server synchronization exists.
-- Files: `src/lib/document/documentStore.ts`, `src/lib/document/templateService.ts`, `src/lib/document/signatureService.ts`, `src/lib/polkadot/kilt.ts`, `src/lib/reputation/tagging.ts`, `src/app/api/documents/route.ts`
-- Impact: Cross-device inconsistency, weak auditability, and difficult recovery when client storage is cleared/corrupted.
-- Fix approach: Define canonical persistence boundaries, migrate critical records server-side first, and keep client storage as cache-only.
+**Very large page modules with mixed responsibilities:**
+- Issue: Several UI pages exceed 500 to 1100 LOC and combine data loading, business logic, blockchain calls, and rendering in single files.
+- Files: `src/app/dashboard/filing/page.tsx`, `src/app/dashboard/profile/page.tsx`, `src/app/dashboard/studio/page.tsx`, `src/app/dashboard/market/page.tsx`, `src/app/admin/breaches/page.tsx`
+- Impact: Regression risk rises with every change, reviewability drops, and component-level testing becomes difficult.
+- Fix approach: Extract route-level hooks/services and split UI into focused components (form state, blockchain orchestration, presentation).
 
 ## Known Bugs
 
-**Non-Unique Derived User IDs in Auth Flow:**
-- Symptoms: Different wallet addresses sharing the same first 8 chars can map to the same derived user ID.
-- Files: `src/app/api/auth/verify/route.ts`, `src/lib/auth/siwp.ts`
-- Trigger: SIWP login where `userId` is derived as `user_${address.slice(0, 8)}`.
-- Workaround: No safe runtime workaround beyond using full-address or database-generated identifiers.
+**SIWP message parser rejects valid non-5xx Polkadot addresses:**
+- Symptoms: Login verification can fail with "Address mismatch" for valid addresses that do not start with `5`.
+- Files: `src/lib/auth/siwp.ts`, `src/app/api/auth/challenge/route.ts`, `src/app/api/auth/verify/route.ts`
+- Trigger: `parseSignInMessage()` only accepts line 2 if `line.startsWith("5")`, while challenge endpoint accepts a broader address pattern.
+- Workaround: Use addresses starting with `5` only, or bypass this parser check in local testing.
 
-**Silent Data Drop on Shared Document Payload Parse Failure:**
-- Symptoms: Corrupted or unexpected payload rows are filtered out without surfacing integrity errors.
-- Files: `src/app/api/documents/route.ts`
-- Trigger: `parsePayload` returns `null` and failed rows are removed by `.filter((doc): doc is DocumentInstance => !!doc)`.
-- Workaround: Manual DB inspection and repair of malformed `payload` rows.
+**Indexer config references handlers that do not exist in repo:**
+- Symptoms: Any real indexer runtime that loads configured handlers fails when resolving transfer/NFT handler modules.
+- Files: `src/lib/indexer/config.ts`, `src/lib/indexer/handlers/poc.ts`
+- Trigger: `POC_INDEXER_CONFIG.handlers` declares `./handlers/transfer` and `./handlers/nft`, but only `poc.ts` exists.
+- Workaround: Limit runtime to POC remark handler or create missing modules before enabling those handlers.
+
+**Contract address helper throws by default with empty constants:**
+- Symptoms: Features relying on `getContractAddress()` fail fast unless deploy addresses are manually injected into constants.
+- Files: `src/config/contracts.ts`
+- Trigger: `CONTRACTS.testnet/mainnet` placeholders are empty strings and helper throws "not deployed".
+- Workaround: Patch constants per environment before using helper-based calls.
 
 ## Security Considerations
 
-**Admin APIs Lack Authentication/Authorization Enforcement:**
-- Risk: Any caller able to hit the endpoints can query or mutate admin data (verification/breach status, logs, template/admin metrics).
-- Files: `src/app/api/admin/breaches/route.ts`, `src/app/api/admin/verification/route.ts`, `src/app/api/admin/logs/route.ts`, `src/app/api/admin/templates/route.ts`, `src/app/api/admin/stats/route.ts`
-- Current mitigation: Minimal request shape validation and partial rate limiting only on `POST /api/admin/breaches`.
-- Recommendations: Enforce session verification and `isAdmin` authorization checks server-side on all admin routes; reject unauthenticated calls before DB access.
+**Admin API routes have no server-side authorization enforcement:**
+- Risk: Any caller can hit admin endpoints directly, list data, and submit state-changing actions by crafting HTTP requests.
+- Files: `src/app/api/admin/breaches/route.ts`, `src/app/api/admin/verification/route.ts`, `src/app/api/admin/users/route.ts`, `src/app/api/admin/templates/route.ts`, `src/app/api/admin/logs/route.ts`, `src/app/api/admin/stats/route.ts`
+- Current mitigation: Client-side gate in admin layout checks wallet against hardcoded address list.
+- Recommendations: Enforce signed-session or wallet-signature auth in route handlers/middleware and verify admin role server-side.
 
-**Unsafe Raw SQL Composition in Shared Documents API:**
-- Risk: Query strings are assembled manually and executed with `$queryRawUnsafe`/`$executeRawUnsafe`, increasing injection and query integrity risk.
-- Files: `src/app/api/documents/route.ts`
-- Current mitigation: Manual single-quote escaping for interpolated fields.
-- Recommendations: Replace unsafe raw SQL calls with parameterized Prisma APIs or prepared statements.
+**Reviewer/admin identity is request-body trust, enabling spoofed audit logs:**
+- Risk: Callers can provide arbitrary `reviewerAddress` values to impersonate admin actions in DB logs and review fields.
+- Files: `src/app/api/admin/breaches/route.ts`, `src/app/api/admin/verification/route.ts`
+- Current mitigation: Optional lookup of reviewer user record when address is provided.
+- Recommendations: Derive actor identity exclusively from authenticated session or signed request; ignore client-provided reviewer identity.
 
-**Mock Encryption and Plaintext Leakage in TEE Proxy Path:**
-- Risk: Base64 is used as mock encryption and plaintext responses are returned in API payloads.
-- Files: `src/lib/polkadot/phala.ts`, `src/app/api/phala-proxy/route.ts`
-- Current mitigation: File comments indicate MVP mock intent.
-- Recommendations: Remove `plainContent` from API responses outside local demo mode, enforce real cryptography before any production exposure.
+**Raw SQL execution uses unsafe API with interpolated strings:**
+- Risk: SQL injection surface and long-term maintenance risk, even with manual single-quote escaping.
+- Files: `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`
+- Current mitigation: Basic quote escaping with `.replace(/'/g, "''")`.
+- Recommendations: Replace `$queryRawUnsafe`/`$executeRawUnsafe` with parameterized Prisma SQL tagged templates or Prisma model methods.
+
+**Session tokens are issued but not persisted or validated on protected APIs:**
+- Risk: Cookie issuance does not translate into centralized authorization checks; privilege boundaries remain unenforced.
+- Files: `src/app/api/auth/verify/route.ts`, `src/lib/auth/siwp.ts`, `src/app/api/admin/*`
+- Current mitigation: HTTP-only cookie set on verify.
+- Recommendations: Persist sessions in `Session` table, validate session on each protected endpoint, rotate/revoke tokens.
 
 ## Performance Bottlenecks
 
-**Per-Request DDL/Index Checks in Documents API:**
-- Problem: `ensureTable()` runs table/index creation checks on request paths.
-- Files: `src/app/api/documents/route.ts`
-- Cause: Runtime schema management embedded into API request handling.
-- Improvement path: Move schema creation/index management to migrations; remove DDL from hot paths.
+**Per-request DDL in document APIs:**
+- Problem: `CREATE TABLE IF NOT EXISTS` and index creation run at request time.
+- Files: `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`
+- Cause: Runtime schema bootstrapping in hot path.
+- Improvement path: Move schema creation to Prisma migrations/startup bootstrap; keep handlers to query/command operations only.
 
-**Monolithic Client Pages Increase Render and Hydration Cost:**
-- Problem: Very large client components increase bundle and hydration pressure.
-- Files: `src/app/dashboard/filing/page.tsx`, `src/app/dashboard/profile/page.tsx`, `src/app/dashboard/studio/page.tsx`, `src/app/dashboard/market/page.tsx`
-- Cause: Mixed concerns and broad stateful logic per page.
-- Improvement path: Split code via dynamic imports for heavy panels, extract hooks/services, and memoize expensive derived state.
+**Unbounded admin list queries in high-churn tables:**
+- Problem: Some admin endpoints return full datasets without pagination (`breaches`, `verification`), which degrades as records grow.
+- Files: `src/app/api/admin/breaches/route.ts`, `src/app/api/admin/verification/route.ts`
+- Cause: Missing `skip/take` and cursor strategy.
+- Improvement path: Add consistent pagination and indexed filter fields.
 
-**In-Memory Rate Limiter Not Shared Across Instances:**
-- Problem: Rate-limit counters are process-local and reset on restart/scale-out.
-- Files: `src/lib/security/rateLimit.ts`
-- Cause: `Map`-based token buckets held in application memory.
-- Improvement path: Move counters to shared storage (Redis/Upstash/DB) and enforce route-level limits consistently.
+**Client-side heavy state/derivation in very large pages:**
+- Problem: Complex parsing/derivation and many React states in single page components can degrade interaction latency on low-end devices.
+- Files: `src/app/dashboard/filing/page.tsx`, `src/app/dashboard/studio/page.tsx`
+- Cause: Monolithic state machines and logic in render-layer modules.
+- Improvement path: Extract memoized domain hooks and isolate expensive operations behind debounced worker/service boundaries.
 
 ## Fragile Areas
 
-**Admin Action Trusts Caller-Provided Reviewer Address:**
-- Files: `src/app/api/admin/breaches/route.ts`, `src/app/api/admin/verification/route.ts`
-- Why fragile: Reviewer identity is accepted from request body (`reviewerAddress`) instead of server-authenticated session context.
-- Safe modification: Introduce authenticated session lookup middleware and derive reviewer identity server-side only.
-- Test coverage: No admin API integration tests detected in `test/`.
+**Admin gating implemented on client layout only:**
+- Files: `src/app/admin/layout.tsx`, `src/app/api/admin/*`
+- Why fragile: UI denies access visually, but server routes can still be invoked directly.
+- Safe modification: Introduce shared `requireAdmin()` server utility and enforce at route entry for every admin endpoint.
+- Test coverage: No API auth tests detected for admin route protection.
 
-**Session Lifecycle Is Incomplete Across API Surface:**
-- Files: `src/app/api/auth/verify/route.ts`, `src/lib/auth/siwp.ts`
-- Why fragile: Sessions are created and cookie-set, but persistence/lookup enforcement is commented or absent in route guards.
-- Safe modification: Implement persisted session storage and shared auth guard for protected API namespaces.
-- Test coverage: No SIWP route tests detected; only contract tests exist in `test/documate-track2.test.js`.
+**Mint/purchase flow couples on-chain checks, DB writes, and user creation:**
+- Files: `src/app/api/market/mint/route.ts`, `src/app/api/market/purchase/route.ts`
+- Why fragile: Multi-system workflow can partially succeed/fail (chain receipt OK, DB write fails, or vice versa) with limited compensating logic.
+- Safe modification: Add idempotency keys, unique tx replay guards across both endpoints, and explicit retry-safe transaction boundaries.
+- Test coverage: No API-level integration tests detected for these flows.
 
-**Fallback-First UI Behavior Masks Backend Failures:**
-- Files: `src/app/admin/page.tsx`, `src/app/admin/verification/page.tsx`, `src/app/admin/breaches/page.tsx`, `src/app/dashboard/market/page.tsx`, `src/app/api/admin/stats/route.ts`
-- Why fragile: On fetch errors, UI keeps or reverts to static/mock data, reducing observability of real failures.
-- Safe modification: Surface explicit degraded-state banners with error telemetry and disable state-mutating actions when backend fetch fails.
-- Test coverage: No UI resilience tests detected for fallback/error modes.
+**Identity verification mode can be toggled to mock on-chain contract:**
+- Files: `contracts/DocuMateMarketplace.sol`, `scripts/deploy-track2.js`, `test/documate-track2.test.js`
+- Why fragile: Deployment/config mistakes can leave environments using mock verification semantics.
+- Safe modification: Guard mock toggles behind explicit network checks and immutable production deployment scripts.
+- Test coverage: Contract tests cover mock behavior, but no deployment assertions for production-mode enforcement.
 
 ## Scaling Limits
 
-**SQLite as Primary Operational Store:**
-- Current capacity: Suitable for small-scale single-node workloads.
-- Limit: Concurrent writes and multi-instance deployments become contention-prone.
-- Scaling path: Migrate `prisma/schema.prisma` datasource from SQLite to a networked production DB (for example Postgres) with managed connection pooling.
+**SQLite as primary operational DB for multi-user workload:**
+- Current capacity: Suitable for local/demo and low write concurrency.
+- Limit: Contention and locking become bottlenecks under concurrent API writes.
+- Scaling path: Move to Postgres-compatible Prisma datasource; retain SQLite only for local dev.
 
-**Process-Local Session/Rate-Limit Assumptions:**
-- Current capacity: Works for single process with sticky behavior.
-- Limit: Horizontal scaling causes inconsistent auth/rate-limit enforcement.
-- Scaling path: Externalize session state and throttle counters to shared infrastructure.
+**In-memory rate limiting is instance-local:**
+- Current capacity: Works for a single process.
+- Limit: Multi-instance/serverless deployments bypass global request quotas.
+- Scaling path: Use centralized Redis-based rate limiter keyed by route and actor.
 
 ## Dependencies at Risk
 
-**Hardhat + Next + On-Chain/Off-Chain Split Without End-to-End Guardrails:**
-- Risk: Contract logic is tested, but application integration assumptions can drift without cross-layer E2E validation.
-- Impact: Deployment can pass contract tests while failing runtime API/UI workflows.
-- Migration plan: Add CI jobs that run API integration tests and critical UI/API happy-path checks in addition to `contracts:test`.
+**Cutting-edge framework stack increases upgrade/churn risk:**
+- Risk: `next@16` + `react@19` + large override set can introduce ecosystem compatibility drift for plugins/tooling.
+- Impact: Build/runtime breakage risk during dependency refreshes and uneven community support for edge versions.
+- Migration plan: Lock tested versions, add CI matrix for build/test, and minimize override surface to only required transitive pins.
 
 ## Missing Critical Features
 
-**Route-Level Access Control for Admin Surface:**
-- Problem: No enforced authz middleware on admin API routes.
-- Blocks: Safe production use of breach/verification moderation and audit log endpoints.
+**Server-enforced RBAC for admin operations:**
+- Problem: Admin trust boundary is not enforced server-side.
+- Blocks: Secure production rollout of moderation, verification approvals, and breach slashing workflows.
 
-**Production-Grade TEE Path:**
-- Problem: Core TEE flow remains mock-based with non-secure placeholder encryption.
-- Blocks: Security claims around confidential AI processing in non-demo environments.
+**Durable challenge/session lifecycle management for SIWP:**
+- Problem: Challenges/sessions are not persisted and nonce replay lifecycle is incomplete.
+- Blocks: Production-grade wallet authentication and reliable account/session revocation.
+
+**Complete indexer execution path (handlers + DB persistence):**
+- Problem: Declared handlers and persistence pipeline are incomplete.
+- Blocks: Accurate on-chain reputation derivation at scale.
 
 ## Test Coverage Gaps
 
-**Application/API/Security Paths Are Untested:**
-- What's not tested: Next.js API routes, admin authorization logic, SIWP session lifecycle, rate limiting behavior, and fallback-mode correctness.
-- Files: `src/app/api/**`, `src/lib/security/rateLimit.ts`, `src/lib/auth/siwp.ts`, `src/app/admin/**`, `src/app/dashboard/**`
-- Risk: Regressions in moderation/security/business workflows can ship undetected.
+**API routes (auth, admin, market, documents) largely untested:**
+- What's not tested: Request validation, authz boundaries, failure/retry behavior, and data consistency in route handlers.
+- Files: `src/app/api/auth/*`, `src/app/api/admin/*`, `src/app/api/market/*`, `src/app/api/documents/*`
+- Risk: Security and data-integrity regressions can ship undetected.
 - Priority: High
 
-**Frontend State Persistence Paths Are Untested:**
-- What's not tested: Browser storage synchronization and recovery behavior for documents/templates/profile/signatures.
-- Files: `src/lib/document/documentStore.ts`, `src/lib/document/templateService.ts`, `src/lib/document/signatureService.ts`, `src/lib/polkadot/kilt.ts`
-- Risk: Data loss, stale state, and inconsistent user experiences across reload/devices.
+**Document sharing SQL path and migration behavior untested:**
+- What's not tested: Runtime `ensureTable()` behavior, raw query safety assumptions, merge conflict semantics.
+- Files: `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`, `src/lib/document/documentStore.ts`
+- Risk: Data corruption and edge-case failures as dataset grows.
+- Priority: High
+
+**Large dashboard pages lack focused unit/component tests:**
+- What's not tested: Placeholder parsing, signature flow, AI-assisted field extraction, and state transitions across complex UI.
+- Files: `src/app/dashboard/filing/page.tsx`, `src/app/dashboard/studio/page.tsx`, `src/app/dashboard/profile/page.tsx`
+- Risk: UX regressions and hidden runtime exceptions in high-change surfaces.
+- Priority: Medium
+
+**Contract tests focus on happy path, limited adversarial coverage:**
+- What's not tested: Reentrancy-oriented edge cases, admin misuse paths, identity-precompile failure scenarios, and negative payment/refund abuse cases.
+- Files: `test/documate-track2.test.js`, `contracts/DocuMateMarketplace.sol`, `contracts/DocuMateStaking.sol`
+- Risk: On-chain logic vulnerabilities may escape before deployment.
 - Priority: Medium
 
 ---

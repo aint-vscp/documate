@@ -4,162 +4,171 @@
 
 ## Pattern Overview
 
-**Overall:** Layered Next.js App Router architecture with co-located route handlers, shared domain services, and external smart-contract execution on Polkadot Hub EVM.
+**Overall:** Next.js App Router modular monolith with domain-organized service modules and hybrid on-chain/off-chain execution.
 
 **Key Characteristics:**
-- UI routes and API routes are co-located under `src/app/` (`page.tsx`, `layout.tsx`, `route.ts` pattern).
-- Business logic is centralized in `src/lib/` modules and consumed by API routes and dashboard pages.
-- Smart contract interactions are split between frontend EVM hooks (`src/hooks/useDocuMateContract.ts`, `src/hooks/useStakingContract.ts`) and Solidity contracts in `contracts/`.
+- Route-driven application boundary: UI pages and API handlers are defined under `src/app/**` (`page.tsx`, `layout.tsx`, `route.ts`).
+- Domain service modules under `src/lib/**` encapsulate auth, chain calls, document operations, validation, and rate limiting.
+- Dual persistence model: relational/off-chain operational state in Prisma SQLite (`prisma/schema.prisma` + `src/lib/db/index.ts`) and blockchain state via EVM + Polkadot clients (`contracts/*.sol`, `src/lib/polkadot/assetHub.ts`, `src/hooks/useDocuMateContract.ts`).
 
 ## Layers
 
-**Presentation Layer (Next.js App Router):**
-- Purpose: Render landing, dashboard, admin, and whitepaper experiences.
-- Location: `src/app/`
-- Contains: `layout.tsx`, `page.tsx`, nested route segments such as `src/app/dashboard/*` and `src/app/admin/*`.
-- Depends on: `src/components/`, `src/hooks/`, `src/lib/*` (for client-side utility calls), `src/config/*`.
-- Used by: Browser clients via Next.js runtime.
+**Presentation Layer (App Router UI):**
+- Purpose: Render user and admin experiences; trigger API calls and wallet-driven actions.
+- Location: `src/app/page.tsx`, `src/app/dashboard/**`, `src/app/admin/**`, `src/app/whitepaper/page.tsx`.
+- Contains: Client components, dashboard/admin layouts, page-level state and user flows.
+- Depends on: `src/components/**`, `src/hooks/**`, browser `fetch` to `/api/*`.
+- Used by: Browser clients.
 
-**API Layer (Next.js Route Handlers):**
-- Purpose: Expose backend endpoints for documents, marketplace, auth, reputation, admin, and integrations.
-- Location: `src/app/api/**/route.ts`
-- Contains: Request validation, rate limiting, Prisma calls, integration orchestration (`phala`, `polkadot`, auth verification).
-- Depends on: `src/lib/db/index.ts`, `src/lib/security/rateLimit.ts`, `src/lib/auth/*`, `src/lib/document/*`, `src/lib/polkadot/*`, `src/lib/contracts/*`.
-- Used by: Dashboard pages and other frontend clients through `fetch('/api/...')`.
+**Component and Hook Layer:**
+- Purpose: Reusable UI widgets and client-side adapters for wallet/contract interactions.
+- Location: `src/components/**`, `src/hooks/**`.
+- Contains: Wallet UI (`src/components/chain/WalletConnect.tsx`), feature widgets, Zustand wallet store (`src/hooks/useWallet.ts`), ethers contract hook (`src/hooks/useDocuMateContract.ts`).
+- Depends on: `src/config/**`, external SDKs (`ethers`, `@polkadot/extension-dapp`, `zustand`).
+- Used by: App Router pages/layouts.
 
-**Domain/Service Layer:**
-- Purpose: Encapsulate business/domain logic (document templates, auth primitives, reputation tagging, chain utilities).
-- Location: `src/lib/`
-- Contains: `auth`, `document`, `reputation`, `polkadot`, `phala`, `contracts`, `indexer` modules.
-- Depends on: Third-party SDKs and shared types (`src/types/index.ts`).
-- Used by: API layer and selected client pages.
+**API Route Layer:**
+- Purpose: Server-side orchestration, validation, rate limiting, persistence, and chain adapter calls.
+- Location: `src/app/api/**/route.ts`.
+- Contains: CRUD and workflow endpoints for auth, documents, market, admin, directory, reputation, validation.
+- Depends on: `src/lib/**`, `src/types/index.ts`, `next/server`.
+- Used by: UI pages, client-side stores, and admin dashboard.
 
-**Data Access Layer:**
-- Purpose: Persist off-chain operational state.
-- Location: `src/lib/db/index.ts`, `prisma/schema.prisma`
-- Contains: Prisma client singleton and relational schema (User, Template, Purchase, BreachReport, Session, etc.).
-- Depends on: `@prisma/client`, sqlite datasource (`provider = "sqlite"` in `prisma/schema.prisma`).
-- Used by: API routes like `src/app/api/market/purchase/route.ts`, `src/app/api/documents/route.ts`, `src/app/api/admin/*/route.ts`.
+**Domain Service Layer:**
+- Purpose: Business logic and integration wrappers independent of route files.
+- Location: `src/lib/auth/**`, `src/lib/document/**`, `src/lib/contracts/**`, `src/lib/phala/**`, `src/lib/polkadot/**`, `src/lib/security/**`, `src/lib/reputation/**`, `src/lib/indexer/**`.
+- Contains: SIWP auth flow, template rendering/store, chain utilities, PDF signature verification, in-memory rate limiter, indexer exports.
+- Depends on: Prisma client, Polkadot SDK, ethers, node-forge, browser APIs (for client-side localStorage modules).
+- Used by: API handlers and some client components/hooks.
 
-**On-Chain Contract Layer:**
-- Purpose: Enforce immutable marketplace settlement and staking/slashing logic.
-- Location: `contracts/`, ABI/config consumers in `src/hooks/*` and `src/config/*`.
-- Contains: `contracts/DocuMateMarketplace.sol`, `contracts/DocuMateStaking.sol`, interfaces in `contracts/interfaces/`.
-- Depends on: Polkadot Hub EVM runtime and identity precompile (`0x...0818` referenced in `contracts/DocuMateMarketplace.sol`).
-- Used by: Client hooks `src/hooks/useDocuMateContract.ts` and `src/hooks/useStakingContract.ts`.
+**Persistence Layer:**
+- Purpose: Model and access off-chain operational data.
+- Location: `prisma/schema.prisma`, `src/lib/db/index.ts`.
+- Contains: User, Session, Template, Purchase, verification, breach, reputation tag, indexer state models.
+- Depends on: SQLite datasource via `DATABASE_URL`.
+- Used by: API routes (`src/app/api/**/route.ts`) and admin stats workflows.
 
-**Ops/Tooling Layer:**
-- Purpose: Deployment, smoke-checks, and media/demo pipeline.
-- Location: `scripts/`, `hardhat.config.js`, `remotion/`
-- Contains: Deploy scripts (`scripts/deploy-track2.js`), testnet checks (`scripts/testnet-smoke-track2.js`), pitch video composition (`remotion/Root.tsx`).
-- Depends on: Hardhat toolchain and Remotion CLI scripts in `package.json`.
-- Used by: Developers and CI-style release checklist commands.
+**Smart Contract Layer (Track 2):**
+- Purpose: Enforce on-chain economics and staking mechanics.
+- Location: `contracts/DocuMate.sol`, `contracts/DocuMateMarketplace.sol`, `contracts/DocuMateStaking.sol`, ABI/config files in `src/config/*.ts`.
+- Contains: Revenue split logic, template mint/purchase logic, staking and breach validation.
+- Depends on: Hardhat build/test pipeline (`hardhat.config.js`, `test/documate-track2.test.js`).
+- Used by: On-chain clients in hooks and deployment scripts.
 
 ## Data Flow
 
-**Marketplace Purchase Flow (UI → Chain → API DB Sync):**
+**Flow: Wallet Auth (SIWP)**
 
-1. User initiates purchase in `src/app/dashboard/market/page.tsx`.
-2. Page calls contract through `useDocuMateContract.executeTransaction(...)` in `src/hooks/useDocuMateContract.ts`.
-3. On-chain transaction executes split logic in `contracts/DocuMateMarketplace.sol` (`purchase`/`purchaseTemplate`).
-4. UI posts transaction hash and purchase payload to `src/app/api/market/purchase/route.ts`.
-5. API route persists purchase + ownership + counters in Prisma transaction via `src/lib/db/index.ts`.
+1. Client requests challenge via `POST /api/auth/challenge` (`src/app/api/auth/challenge/route.ts`).
+2. Route applies rate limit (`src/lib/security/rateLimit.ts`) and creates challenge via `generateChallenge` (`src/lib/auth/siwp.ts`).
+3. Client signs message in wallet extension and submits to `POST /api/auth/verify` (`src/app/api/auth/verify/route.ts`).
+4. Route parses/validates message (`parseSignInMessage`), verifies signature (`verifySignedChallenge`), creates session (`createSession`), then sets `session_token` cookie.
 
-**DID/Auth Session Flow (Wallet Signature → Session Cookie):**
+**Flow: Document Create/Sync/Fetch**
 
-1. Client requests challenge from `src/app/api/auth/challenge/route.ts`.
-2. Wallet signs challenge message client-side.
-3. Client submits signature to `src/app/api/auth/verify/route.ts`.
-4. Route verifies SIWP primitives from `src/lib/auth/siwp.ts` (barrel exported from `src/lib/auth/index.ts`).
-5. Session cookie is set with `cookies()` in `src/app/api/auth/verify/route.ts`.
+1. UI builds document/template content using `src/lib/document/templateService.ts` and local state in `src/lib/document/documentStore.ts`.
+2. Client syncs document to shared storage via `POST /api/documents` (`src/app/api/documents/route.ts`).
+3. Route ensures `SharedDocument` table, upserts serialized payload through Prisma raw SQL.
+4. Client fetches merged data via `GET /api/documents?walletAddress=...` and merges by latest update (`mergeByLatestUpdate` in `src/lib/document/documentStore.ts`).
 
-**Document Storage & Retrieval Flow:**
+**Flow: Marketplace Purchase and Revenue Split**
 
-1. Client submits/reads shared documents via `/api/documents` endpoints (`src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`).
-2. Route ensures table/indexes and executes SQL through Prisma raw methods.
-3. Payload is normalized and converted to typed `DocumentInstance` objects from `src/types/index.ts`.
-4. Response is returned as JSON to dashboard pages under `src/app/dashboard/documents/*`.
+1. UI triggers purchase through contract hook (`src/hooks/useDocuMateContract.ts`) and/or API record endpoint.
+2. Server endpoint `POST /api/market/purchase` (`src/app/api/market/purchase/route.ts`) validates request + rate limit.
+3. Route loads template/user records via Prisma, prevents self-purchase, computes split using constants from `src/lib/contracts/marketplace.ts`.
+4. Transaction persists purchase + ownership + sales counter in a Prisma transaction.
+5. On-chain economic enforcement path is validated in `test/documate-track2.test.js` against `contracts/DocuMateMarketplace.sol`.
 
-**Reputation Retrieval Flow (API Proxy to Chain):**
+**Flow: Reputation Lookup**
 
-1. Client loads reputation endpoint `src/app/api/reputation/[id]/route.ts`.
-2. Route creates chain connection using `src/lib/polkadot/assetHub.ts` exports.
-3. Route fetches history and maps to API response payload.
-4. Response powers profile views in `src/app/dashboard/profile/page.tsx`.
+1. Client requests `GET /api/reputation/[id]` (`src/app/api/reputation/[id]/route.ts`).
+2. Route creates/caches WS connection via `createAssetHubConnection` (`src/lib/polkadot/assetHub.ts`).
+3. Service scans recent blocks and parses POC-1 memo patterns via `fetchReputationHistory`.
+4. Endpoint returns aggregated profile data.
 
 **State Management:**
-- Client connection/session state uses Zustand stores in `src/hooks/useWallet.ts` and EVM hook state in `src/hooks/useEVMWallet.ts`.
-- Persistent local client identity profile is stored in browser localStorage through `src/lib/polkadot/kilt.ts` (`saveUserProfile`, `loadUserProfile`).
-- Server-side operational state persists in SQLite through Prisma models in `prisma/schema.prisma`.
+- UI/session-like wallet state uses Zustand persisted store (`src/hooks/useWallet.ts`).
+- Long-lived operational state uses Prisma/SQLite (`prisma/schema.prisma`).
+- Collaborative document cache is hybrid: browser localStorage + server `SharedDocument` table (`src/lib/document/documentStore.ts`, `src/app/api/documents/route.ts`).
+- Chain connection state is cached in-memory in `apiCache` map (`src/lib/polkadot/assetHub.ts`).
 
 ## Key Abstractions
 
-**Contract Hook Abstraction:**
-- Purpose: Hide provider/signer wiring and contract method/selector compatibility checks.
-- Examples: `src/hooks/useDocuMateContract.ts`, `src/hooks/useStakingContract.ts`
-- Pattern: Hook-based façade returning high-level methods (`executeTransaction`, `verifyDID`, `stakeReputation`).
+**AuthChallenge / AuthSession Abstraction:**
+- Purpose: Standardize SIWP challenge/session artifacts.
+- Examples: `AuthChallenge`, `AuthSession` interfaces in `src/lib/auth/siwp.ts`.
+- Pattern: Stateless creation/verification helpers consumed by thin route handlers.
 
-**Prisma Singleton Abstraction:**
-- Purpose: Avoid client re-instantiation in dev/hot-reload contexts.
-- Examples: `src/lib/db/index.ts`
-- Pattern: `globalThis` guarded singleton factory (`makePrismaClient`).
+**Document Template + Instance Abstraction:**
+- Purpose: Separate template definitions from in-flight document instances.
+- Examples: `DocumentTemplate`, `DocumentInstance` in `src/types/index.ts`; implementations in `src/lib/document/templateService.ts` and `src/lib/document/documentStore.ts`.
+- Pattern: Local-first document authoring with server sync endpoint.
 
-**Route Guard Abstraction (Rate Limiting):**
-- Purpose: Reusable in-memory request throttling for sensitive endpoints.
-- Examples: `src/lib/security/rateLimit.ts`, used in `src/app/api/market/purchase/route.ts`, `src/app/api/auth/verify/route.ts`.
-- Pattern: Route helper `withRateLimit(request, routeKey, config)` returning `NextResponse | null`.
+**Revenue Split Abstraction:**
+- Purpose: Keep 75/20/5 split centralized and reused between client preview and server records.
+- Examples: `REVENUE_SPLIT` and split calculators in `src/lib/contracts/marketplace.ts`; server usage in `src/app/api/market/purchase/route.ts`.
+- Pattern: Shared constants + deterministic math mirrored across on-chain/off-chain boundaries.
 
-**Domain Barrel Abstractions:**
-- Purpose: Stabilize import surface and keep route files short.
-- Examples: `src/lib/document/index.ts`, `src/lib/reputation/index.ts`, `src/lib/indexer/index.ts`, `src/config/index.ts`.
-- Pattern: Barrel re-exports for module namespaces.
+**Rate-Limited Endpoint Wrapper:**
+- Purpose: Provide consistent anti-abuse behavior in public API routes.
+- Examples: `withRateLimit` in `src/lib/security/rateLimit.ts`; route usage in `src/app/api/auth/challenge/route.ts`, `src/app/api/auth/verify/route.ts`, `src/app/api/market/purchase/route.ts`.
+- Pattern: Route-level guard called before business logic.
 
 ## Entry Points
 
-**Web App Root:**
-- Location: `src/app/layout.tsx`
-- Triggers: Every app route render.
-- Responsibilities: Global metadata, font loading, shared body/theme classes.
+**Web App Entry:**
+- Location: `src/app/layout.tsx`, `src/app/page.tsx`.
+- Triggers: Browser requests to site root.
+- Responsibilities: Global metadata/fonts/styles and landing experience.
 
-**Landing Route:**
-- Location: `src/app/page.tsx`
-- Triggers: `GET /`.
-- Responsibilities: Product narrative, quick links into dashboard and whitepaper, wallet connect CTA.
+**Dashboard Entry:**
+- Location: `src/app/dashboard/layout.tsx`.
+- Triggers: Requests to `/dashboard/**` routes.
+- Responsibilities: Shared dashboard shell, navigation, and wallet controls.
 
-**Dashboard Shell:**
-- Location: `src/app/dashboard/layout.tsx`
-- Triggers: Any `/dashboard/*` route.
-- Responsibilities: Sidebar navigation, active route state, top bar wallet controls.
+**Admin Entry:**
+- Location: `src/app/admin/layout.tsx`.
+- Triggers: Requests to `/admin/**` routes.
+- Responsibilities: Wallet-gated admin shell and stats fetch orchestration.
 
-**API Surface:**
-- Location: `src/app/api/**/route.ts`
-- Triggers: HTTP requests under `/api/*`.
-- Responsibilities: Validate input, call domain modules, enforce limits, perform DB/chain operations.
+**API Boundary Entry:**
+- Location: `src/app/api/**/route.ts`.
+- Triggers: HTTP requests from UI/scripts.
+- Responsibilities: Input validation, rate limiting, delegation to services/db, response shaping.
 
-**Contract Deployment Entry:**
-- Location: `scripts/deploy-track2.js`
-- Triggers: `npx hardhat run scripts/deploy-track2.js --network polkadotHub`.
-- Responsibilities: Deploy `DocuMateStaking` and `DocuMateMarketplace`, optional mock verification toggles.
+**Smart Contract/Test Entry:**
+- Location: `hardhat.config.js`, `contracts/*.sol`, `test/documate-track2.test.js`, `scripts/deploy.js`, `scripts/deploy-track2.js`.
+- Triggers: CLI commands (`npm run contracts:compile`, `npm run contracts:test`, deployment scripts).
+- Responsibilities: Build, test, and deploy EVM contracts for Track 2 workflows.
 
-**Hardhat Runtime Entry:**
-- Location: `hardhat.config.js`
-- Triggers: `npm run contracts:compile`, `npm run contracts:test`.
-- Responsibilities: Solidity compiler settings, Polkadot Hub network, artifacts/tests path config.
+**Video Composition Entry:**
+- Location: `remotion/index.ts`, `remotion/Root.tsx`.
+- Triggers: Remotion commands (`npm run video:studio`, `npm run video:render`).
+- Responsibilities: Register and compose pitch/demo video timelines.
 
 ## Error Handling
 
-**Strategy:** API-first defensive validation with early returns and consistent JSON error payloads.
+**Strategy:** Local try/catch in route handlers with JSON error responses and conservative fallbacks.
 
 **Patterns:**
-- Input guard clauses + HTTP status mapping (400/401/404/429/500) in route handlers such as `src/app/api/market/purchase/route.ts`.
-- `try/catch` wrappers with server logging (`console.error`) in API routes and client action handlers.
-- Fallback UI/data behavior in client pages (e.g., fallback templates in `src/app/dashboard/market/page.tsx`).
+- API handlers wrap logic in `try/catch` and return `NextResponse.json(..., { status })` (`src/app/api/**/route.ts`).
+- Validation-first guards return 400/401/404 before side effects (`src/app/api/auth/verify/route.ts`, `src/app/api/market/purchase/route.ts`).
+- Services return explicit `null`/empty defaults for recoverable failures (e.g., `getPlatformStats` in `src/hooks/useDocuMateContract.ts`).
+- Logging uses `console.error` within route/service catch blocks.
 
 ## Cross-Cutting Concerns
 
-**Logging:** `console.error(...)` in API routes and client-side async handlers (e.g., `src/app/api/documents/route.ts`, `src/app/dashboard/profile/page.tsx`).
-**Validation:** Regex and schema-like manual checks in route handlers (`src/app/api/market/purchase/route.ts`, `src/app/api/documents/route.ts`, `src/app/api/market/templates/route.ts`).
-**Authentication:** Wallet-signature flow in `src/app/api/auth/challenge/route.ts` + `src/app/api/auth/verify/route.ts` with cookie-backed session token issuance.
+**Logging:** Route-local `console.error` statements in API handlers, plus optional Prisma query/error logs in dev mode (`src/lib/db/index.ts`).
+
+**Validation:**
+- Syntactic checks in route handlers (address regex, required fields, tx hash format).
+- Signature-level validation in `src/lib/phala/signatureValidator.ts`.
+- Message/challenge parsing validation in `src/lib/auth/siwp.ts`.
+
+**Authentication/Authorization:**
+- SIWP challenge-sign-verify flow in auth routes (`src/app/api/auth/**`) and service (`src/lib/auth/siwp.ts`).
+- Cookie-based session token set server-side in verify route.
+- Admin layout enforces address allowlist client-side (`src/app/admin/layout.tsx`).
 
 ---
 

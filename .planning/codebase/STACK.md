@@ -5,87 +5,82 @@
 ## Languages
 
 **Primary:**
-- TypeScript - App and API implementation in `src/app`, `src/lib`, `src/hooks`, `src/components`.
-- JavaScript - Tooling and scripts in `hardhat.config.js`, `scripts/deploy-track2.js`, `scripts/testnet-config-check.js`, `test/documate-track2.test.js`.
+- TypeScript (strict mode) - Next.js app, API routes, hooks, and libraries in `src/` (`tsconfig.json`, `src/app/**`, `src/lib/**`)
+- JavaScript (Node/CommonJS + ESM configs) - Hardhat config and operational scripts in `hardhat.config.js`, `scripts/*.js`, and tool configs like `next.config.mjs`
 
 **Secondary:**
-- Solidity (0.8.24) - Smart contracts in `contracts/DocuMate.sol`, `contracts/DocuMateMarketplace.sol`, `contracts/DocuMateStaking.sol`.
-- Rust (edition 2021) - Ink! contract crate in `contracts/marketplace/Cargo.toml`, `contracts/marketplace/lib.rs`.
-- CSS - Styling in `src/app/globals.css` with Tailwind config in `tailwind.config.ts`.
+- Solidity 0.8.24 - Smart contracts in `contracts/DocuMate.sol`, `contracts/DocuMateMarketplace.sol`, `contracts/DocuMateStaking.sol`
+- Rust (edition 2021) - ink! marketplace prototype in `contracts/marketplace/lib.rs` with manifest in `contracts/marketplace/Cargo.toml`
+- CSS - global styles and Tailwind pipeline in `src/app/globals.css` and `tailwind.config.ts`
 
 ## Runtime
 
 **Environment:**
-- Node.js runtime for Next.js server routes, explicitly set in `src/app/api/validate-document/route.ts` (`runtime = "nodejs"`).
-- Browser runtime for wallet and storage flows (`window`, `localStorage`, `sessionStorage`) in `src/hooks/useWallet.ts`, `src/hooks/useEVMWallet.ts`, `src/lib/document/documentStore.ts`.
+- Node.js runtime for Next.js server routes and scripts (version not pinned in repo; no `.nvmrc` detected)
+- Browser runtime for React client and wallet integrations (e.g., `ethers.BrowserProvider` in `src/hooks/useDocuMateContract.ts`)
 
 **Package Manager:**
-- npm (scripts defined in `package.json`).
-- Lockfile: present (`package-lock.json`, lockfileVersion 3).
+- npm (commands and lockfile present via `package-lock.json` and scripts in `package.json`)
+- Lockfile: present (`package-lock.json`)
 
 ## Frameworks
 
 **Core:**
-- Next.js `^16.1.7` - App Router web app and API routes (`src/app/**`, dependency in `package.json`).
-- React `^19.0.0` - UI layer (`src/app/**`, `src/components/**`, dependency in `package.json`).
-- Prisma `^6.19.2` - ORM/database client (`prisma/schema.prisma`, `src/lib/db/index.ts`).
+- Next.js `^16.1.7` - full-stack web app and API routing (`package.json`, `src/app/**`)
+- React `^19.0.0` + React DOM `^19.0.0` - UI rendering (`package.json`, `src/components/**`)
+- Prisma Client `^6.19.2` - database ORM access (`src/lib/db/index.ts`, `src/app/api/**`)
+- ethers `^6.16.0` - EVM JSON-RPC and contract interaction (`src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`)
+- Polkadot SDKs (`@polkadot/api`, `@polkadot/api-contract`, `@polkadot/extension-dapp`) - chain RPC and extension interactions (`src/lib/polkadot/**`, `src/hooks/useWallet.ts`)
 
 **Testing:**
-- Hardhat test runner + Mocha/Chai via `@nomicfoundation/hardhat-toolbox` (`hardhat.config.js`, `test/documate-track2.test.js`).
+- Hardhat test runner (`hardhat` `^2.28.6`, `@nomicfoundation/hardhat-toolbox` `^5.0.0`) for contract tests (`test/documate-track2.test.js`)
 
 **Build/Dev:**
-- TypeScript `^5` (`tsconfig.json`, dependency in `package.json`).
-- ESLint `^9` + `eslint-config-next` (`eslint.config.mjs`, lint script in `package.json`).
-- Tailwind CSS `^3.4.0` + PostCSS (`tailwind.config.ts`, `postcss.config.mjs`).
-- Hardhat `^2.28.6` for Solidity compile/test/deploy (`hardhat.config.js`, scripts in `package.json`).
-- Remotion `^4.0.435` for pitch/demo video assets (`remotion.config.ts`, `remotion/index.ts`, scripts in `package.json`).
+- Hardhat - Solidity compile/test/deploy (`hardhat.config.js`, `scripts/deploy-track2.js`)
+- Tailwind CSS + PostCSS - styling pipeline (`tailwind.config.ts`, `postcss.config.mjs`)
+- ESLint 9 + `eslint-config-next` - linting (`eslint.config.mjs`, `package.json`)
+- Remotion (`remotion`, `@remotion/cli`, `@remotion/player`, `@remotion/renderer`) - demo video assets (`remotion/**`, `remotion.config.ts`)
 
 ## Key Dependencies
 
 **Critical:**
-- `next`, `react`, `react-dom` - Web application runtime (`package.json`).
-- `@prisma/client` - Data access layer used by API routes (`src/lib/db/index.ts`, `src/app/api/**/route.ts`).
-- `ethers` - EVM RPC/contract interactions for server and client flows (`src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`, `src/hooks/useDocuMateContract.ts`).
-- `@polkadot/api` and `@polkadot/extension-dapp` - Polkadot/Substrate chain and wallet integration (`src/lib/polkadot/assetHub.ts`, `src/hooks/useWallet.ts`, `src/lib/auth/siwp.ts`).
+- `next` `^16.1.7` - web app runtime and API framework
+- `react` `^19.0.0` / `react-dom` `^19.0.0` - front-end rendering
+- `ethers` `^6.16.0` - EVM contract reads/writes against Polkadot Hub RPC
+- `@prisma/client` `^6.19.2` and `prisma` `^6.19.2` - SQLite-backed operational persistence
+- `@polkadot/api` `^16.5.4` - substrate RPC and chain interactions
 
 **Infrastructure:**
-- `dotenv` - Environment loading in node scripts/config (`hardhat.config.js`, `prisma.config.ts`, `scripts/testnet-config-check.js`).
-- `node-forge` - PKCS#7/PAdES PDF signature verification (`src/lib/phala/signatureValidator.ts`).
-- `zustand` - Client-side wallet state store (`src/hooks/useWallet.ts`, `src/hooks/useEVMWallet.ts`).
-- `@polkadot/api-contract` - Dynamic contract wrappers for Substrate contract calls (`src/lib/contracts/marketplace.ts`).
-- `@libsql/client` and `@kiltprotocol/sdk-js` are declared in `package.json`; direct imports were not detected in `src/**`.
+- `dotenv` `^17.3.1` - env loading for scripts/configs (`hardhat.config.js`, `scripts/*.js`, `prisma.config.ts`)
+- `zustand` `^5.0.0` - client state management
+- `node-forge` `^1.3.1` - crypto utility dependency
+- `@kiltprotocol/sdk-js` `^1.0.0` - KILT SDK dependency (custom light DID implementation is currently used in `src/lib/polkadot/kilt.ts`)
+- `@libsql/client` `^0.17.0` - declared, but no active imports detected in `src/**`
 
 ## Configuration
 
 **Environment:**
-- Configured through environment variables consumed by app/server/scripts:
-  - Chain and contracts: `POLKADOT_HUB_RPC_URL`, `MARKETPLACE_CONTRACT_ADDRESS`, `STAKING_CONTRACT_ADDRESS`, `DOCUMATE_NETWORK` (`src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`, `src/config/contracts.ts`).
-  - Secrets/keys: `PRIVATE_KEY`, `ADMIN_PRIVATE_KEY` (`hardhat.config.js`, `scripts/testnet-smoke-track2.js`, `src/app/api/admin/breaches/route.ts`).
-  - Database/runtime: `DATABASE_URL`, `NODE_ENV` (`prisma.config.ts`, `src/lib/indexer/config.ts`, `src/lib/db/index.ts`).
-  - Deployment toggles: `TREASURY_ADDRESS`, `BURN_ADDRESS`, `IDENTITY_PRECOMPILE`, `USE_MOCK_VERIFICATION`, `TEST_WALLET_ADDRESS` (`scripts/deploy-track2.js`, `scripts/testnet-config-check.js`).
-- `.env.example` is present at repo root for environment setup.
+- Runtime/database env configured via `process.env` in app and scripts (`src/lib/db/index.ts`, `src/lib/indexer/config.ts`, `scripts/*.js`)
+- Baseline env var names provided in `.env.example` (`DATABASE_URL`, `PRIVATE_KEY`, `ADMIN_PRIVATE_KEY`, `POLKADOT_HUB_RPC_URL`, `MARKETPLACE_CONTRACT_ADDRESS`, `STAKING_CONTRACT_ADDRESS`)
+- Additional script-level env toggles used in deployment/smoke flows (`TREASURY_ADDRESS`, `BURN_ADDRESS`, `IDENTITY_PRECOMPILE`, `USE_MOCK_VERIFICATION`, `TEST_WALLET_ADDRESS`)
 
 **Build:**
-- Next config and security headers: `next.config.mjs`.
-- TypeScript config: `tsconfig.json`.
-- ESLint config: `eslint.config.mjs`.
-- Tailwind/PostCSS config: `tailwind.config.ts`, `postcss.config.mjs`.
-- Hardhat config: `hardhat.config.js`.
-- Prisma config/schema: `prisma.config.ts`, `prisma/schema.prisma`.
-- Remotion config: `remotion.config.ts`.
+- App build config: `next.config.mjs`, `tsconfig.json`, `postcss.config.mjs`, `tailwind.config.ts`
+- Smart contract build config: `hardhat.config.js`
+- Prisma config: `prisma.config.ts` + schema in `prisma/schema.prisma`
+- Remotion render config: `remotion.config.ts`
 
 ## Platform Requirements
 
 **Development:**
-- Node.js + npm toolchain (`package.json` scripts).
-- Polkadot-compatible wallet extension for client auth/signing (`src/hooks/useWallet.ts`, `src/lib/auth/siwp.ts`).
-- Local SQLite database via Prisma (`prisma/schema.prisma`, `prisma.config.ts`).
-- Access to Polkadot Hub Testnet RPC for on-chain features (`hardhat.config.js`, `src/app/api/market/mint/route.ts`).
+- Node.js + npm toolchain for Next.js, Hardhat, Prisma, and Remotion (`package.json` scripts)
+- Local SQLite file configured by default (`DATABASE_URL="file:./dev.db"` in `.env.example`)
+- Browser wallet extension support for Polkadot/EVM flows (`src/hooks/useWallet.ts`, `src/hooks/useEVMWallet.ts`)
 
 **Production:**
-- Node.js hosting for Next.js app/API routes.
-- Reliable RPC connectivity to configured EVM endpoint(s) (`POLKADOT_HUB_RPC_URL`) and optional WS endpoints for Substrate integrations (`src/lib/polkadot/assetHub.ts`, `src/lib/indexer/config.ts`).
-- Environment variable secret management for keys and contract addresses.
+- Next.js-compatible Node hosting target (no repo-specific platform lock-in file detected)
+- Access to Polkadot Hub RPC and related chain endpoints from `src/config/chains.ts`
+- Secure env/secrets management required for private keys referenced by server/admin routes (`src/app/api/admin/breaches/route.ts`, `scripts/testnet-smoke-track2.js`)
 
 ---
 

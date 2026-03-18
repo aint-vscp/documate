@@ -5,108 +5,116 @@
 ## Naming Patterns
 
 **Files:**
-- Route handlers use Next.js App Router naming with `route.ts` under API paths, e.g. `src/app/api/auth/challenge/route.ts`, `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`.
-- UI pages use `page.tsx` and optional `layout.tsx`, e.g. `src/app/dashboard/documents/new/page.tsx`, `src/app/admin/layout.tsx`.
-- React components use PascalCase file names, e.g. `src/components/document/DocumentEditor.tsx`, `src/components/chain/WalletConnect.tsx`.
-- Hooks use `useXxx.ts` naming, e.g. `src/hooks/useWallet.ts`, `src/hooks/useEVMWallet.ts`, `src/hooks/useDocuMateContract.ts`.
-- Type collections and barrel exports use `index.ts`, e.g. `src/types/index.ts`, `src/components/document/index.ts`, `src/config/index.ts`.
+- React route files follow Next App Router naming: `page.tsx`, `layout.tsx`, `route.ts` in `src/app/**`.
+- React component files use PascalCase filenames: `src/components/document/DocumentEditor.tsx`, `src/components/chain/WalletConnect.tsx`.
+- Hooks use `use*` camelCase filenames: `src/hooks/useEVMWallet.ts`, `src/hooks/useWallet.ts`.
+- Utility/service files use lower camelCase names by domain: `src/lib/document/templateService.ts`, `src/lib/security/rateLimit.ts`.
+- Barrel exports use `index.ts`: `src/components/chain/index.ts`, `src/lib/document/index.ts`.
 
 **Functions:**
-- General functions use camelCase, e.g. `normalizeAddress`, `isValidEvmAddress`, `parsePayload` in `src/app/api/documents/route.ts`.
-- API route exports use uppercase HTTP method names (`GET`, `POST`) in route files, e.g. `src/app/api/documents/route.ts`, `src/app/api/auth/challenge/route.ts`.
-- React components use PascalCase function names, e.g. `DocumentEditor` in `src/components/document/DocumentEditor.tsx`, `NewDocumentPage` in `src/app/dashboard/documents/new/page.tsx`.
+- Exported functions use camelCase: `withRateLimit`, `verifySignedChallenge`, `renderTemplate`.
+- API route handlers are uppercase HTTP verbs as required by Next (`GET`, `POST`) in `src/app/api/**/route.ts`.
+- Internal helpers stay camelCase and near usage (`normalizeAddress`, `escapeSqlString`, `switchToPolkadotHub`).
 
 **Variables:**
-- Local variables and state use camelCase (`receiverAddress`, `isGenerating`, `selectedTemplate`) in `src/app/dashboard/documents/new/page.tsx`.
-- Immutable constants use SCREAMING_SNAKE_CASE for shared constants (`AUTH_CONFIG`, `FREE_TEMPLATES`, `PURCHASED_TEMPLATES_KEY`) in `src/lib/auth/siwp.ts` and `src/lib/document/templateService.ts`.
-- Type aliases/interfaces use PascalCase (`DocumentTemplate`, `VerificationResult`, `WalletState`) in `src/types/index.ts` and `src/hooks/useWallet.ts`.
+- Local/state variables use camelCase (`selectedTemplate`, `placeholderValues`, `isConnecting`).
+- Constants use UPPER_SNAKE_CASE (`AUTH_CONFIG`, `FREE_TEMPLATES`, `REVENUE_SPLIT`).
+- Literal union types are used for controlled states (`type Step = "select" | "fill" | "preview"` in `src/app/dashboard/documents/new/page.tsx`).
 
 **Types:**
-- Interface names are PascalCase and descriptive (`VerifiableCredential`, `TransactionResult`, `AuthSession`) in `src/types/index.ts` and `src/lib/auth/siwp.ts`.
-- Union literal types are used for finite states (`DocumentStatus`, `TransactionStatus`, `NetworkId`) in `src/types/index.ts`.
+- Interfaces and type aliases use PascalCase (`DocumentTemplate`, `AuthSession`, `TransactionStatus`) in `src/types/index.ts`.
+- State interfaces are colocated with stores (`EVMWalletState` in `src/hooks/useEVMWallet.ts`).
 
 ## Code Style
 
 **Formatting:**
-- Primary style control is ESLint via `eslint.config.mjs` and script `npm run lint` in `package.json`.
-- Semicolons are used consistently across TypeScript and JavaScript files, e.g. `src/app/api/documents/route.ts`, `src/hooks/useWallet.ts`, `scripts/testnet-smoke-track2.js`.
-- String literals predominantly use double quotes.
-- Existing code uses mixed indentation widths across files (2-space in `test/documate-track2.test.js`, 4-space in many TypeScript files such as `src/lib/auth/siwp.ts`). Preserve local file style when editing.
+- No dedicated Prettier/Biome config detected (`.prettierrc*` and `biome.json` not present).
+- Style is governed by TypeScript + ESLint + existing code style.
+- Semicolons are consistently present across TS/JS files.
+- Indentation is mostly 4 spaces in app/lib TS files and 2 spaces in Hardhat tests/scripts (`test/documate-track2.test.js`, `scripts/*.js`).
 
 **Linting:**
-- Lint base extends Next core-web-vitals (`eslint-config-next/core-web-vitals`) in `eslint.config.mjs`.
-- Project-specific disabled rules include:
+- Primary config: `eslint.config.mjs` using `eslint-config-next/core-web-vitals`.
+- Legacy config also present: `.eslintrc.json` with `next/core-web-vitals` + `next/typescript`.
+- Lint command: `npm run lint` → `eslint . --ext .ts,.tsx,.js,.mjs --quiet --report-unused-disable-directives-severity off` from `package.json`.
+- Notable disabled rules in `eslint.config.mjs`:
   - `@typescript-eslint/no-unused-expressions`
   - `react-hooks/set-state-in-effect`
   - `react-hooks/immutability`
   - `react-hooks/purity`
   - `import/no-anonymous-default-export`
-- Ignore patterns include build/artifact folders (`.next/**`, `out/**`, `artifacts/**`, `cache/**`, `node_modules/**`) in `eslint.config.mjs`.
 
 ## Import Organization
 
 **Order:**
-1. Framework/runtime imports first (e.g. `next/server`, `react`, `next/navigation`) in `src/app/api/documents/route.ts` and `src/app/dashboard/documents/new/page.tsx`.
-2. Internal alias imports next (`@/...`) in most app/library files.
-3. `type` imports are usually separated with `import type`, e.g. `src/app/api/documents/route.ts`, `src/lib/document/templateService.ts`.
+1. Framework/runtime imports first (`next/server`, `react`, `zustand`, `ethers`).
+2. Internal alias imports second (`@/lib/*`, `@/hooks/*`, `@/types`).
+3. Type-only imports where appropriate (`import type { DocumentTemplate } from "@/types"`).
 
 **Path Aliases:**
-- `@/*` -> `./src/*` configured in `tsconfig.json`.
-- Alias usage is standard for internal imports, e.g. `@/lib/db`, `@/types`, `@/hooks/useEVMWallet`.
+- Use `@/*` → `./src/*` from `tsconfig.json`.
+- Convention: prefer alias imports for internal modules in app code (`src/app/api/documents/route.ts`, `src/app/dashboard/documents/new/page.tsx`).
 
 ## Error Handling
 
 **Patterns:**
-- Server handlers use `try/catch` with structured JSON errors and HTTP status codes via `NextResponse.json`, e.g. `src/app/api/documents/route.ts`, `src/app/api/auth/challenge/route.ts`.
-- Input validation follows early returns for bad requests (400/404/429), e.g. address and chain checks in `src/app/api/auth/challenge/route.ts`.
-- Client flows often degrade gracefully when non-critical sync fails (swallowed catch with comment), e.g. `handleCreate` in `src/app/dashboard/documents/new/page.tsx`.
-- Utility helpers return nullable or boolean results instead of throwing for expected parse/validation failures, e.g. `parsePayload` in `src/app/api/documents/route.ts`, `verifyChallengeExpiry` in `src/lib/auth/siwp.ts`.
+- API routes consistently wrap logic in `try/catch` and return JSON errors with HTTP status:
+  - `src/app/api/documents/route.ts`
+  - `src/app/api/auth/verify/route.ts`
+  - `src/app/api/market/mint/route.ts`
+- Input validation is explicit and early-return based (address regex, required fields, tx-hash checks).
+- Client hooks convert unknown errors to user-facing messages (`mapProviderError` in `src/hooks/useEVMWallet.ts`).
+- Graceful fallback pattern is common: return empty arrays/null on parse failures (`src/lib/document/templateService.ts`).
 
 ## Logging
 
 **Framework:** console
 
 **Patterns:**
-- API and scripts use `console.error` in catch blocks and `console.log` for operational steps.
-- Representative files: `src/app/api/documents/route.ts`, `src/app/api/auth/challenge/route.ts`, `scripts/testnet-smoke-track2.js`, `scripts/demo-fallback-check.js`.
-- No dedicated logging abstraction or observability SDK detected.
+- Server/API logging uses `console.error("<Context>:", error)` before returning sanitized client errors.
+- Operational scripts use `console.log` for stage-by-stage progress and `console.error` in top-level catch:
+  - `scripts/testnet-smoke-track2.js`
+  - `scripts/demo-fallback-check.js`
 
 ## Comments
 
 **When to Comment:**
-- Multi-line section banners and purpose comments are common in complex files, e.g. `src/lib/auth/siwp.ts`, `src/hooks/useWallet.ts`, `src/lib/document/templateService.ts`.
-- Inline comments are used to explain intent for non-obvious logic or constraints (SSR dynamic import, production TODOs, fallback behavior).
+- Section-divider comments (`// ============================================================`) are used heavily in hooks/services for navigability.
+- JSDoc blocks document public functions and workflow intent in library files (`src/lib/auth/siwp.ts`, `src/lib/contracts/marketplace.ts`).
+- API files often include endpoint-level header comments describing route purpose.
 
 **JSDoc/TSDoc:**
-- Function-level docblocks are used frequently in utility/service modules, e.g. `generateChallenge` and `verifySignedChallenge` in `src/lib/auth/siwp.ts`, parser helpers in `src/components/document/DocumentEditor.tsx`.
-- React page/component files rely more on brief header comments than full API docblocks.
+- Present and meaningful in domain/service modules (`src/lib/auth/siwp.ts`, `src/lib/contracts/marketplace.ts`, `src/lib/document/templateService.ts`).
+- Less prevalent in page components where intent is encoded through JSX structure and names.
 
 ## Function Design
 
 **Size:**
-- API route handlers tend to keep transport logic and validation in a single function (`GET`/`POST`) and extract small helpers nearby, e.g. `src/app/api/documents/route.ts`.
-- Some UI modules contain larger in-file helper logic (text formalization and preview workflow) in `src/app/dashboard/documents/new/page.tsx`.
+- Utility/service functions are typically small-to-medium and single-purpose.
+- UI page files can be large and orchestration-heavy (`src/app/dashboard/filing/page.tsx`, `src/app/dashboard/documents/new/page.tsx`).
 
 **Parameters:**
-- Typed object parameters are common in utility modules and hooks (`config` objects, typed payloads), e.g. `withRateLimit` in `src/lib/security/rateLimit.ts`.
-- Next route handlers use typed `NextRequest` and typed `context.params` objects, e.g. `src/app/api/documents/[id]/route.ts`.
+- Object parameters are preferred for multi-argument domain operations (`verifySignedChallenge`, `createSignInMessage`).
+- Primitive positional args are common in helper utilities (`escapeSqlString(value: string)`).
 
 **Return Values:**
-- API endpoints return `NextResponse` JSON envelopes with predictable keys (`success`, `data`, `error`) in most routes.
-- Utility functions often return domain types plus nullable fallback (`DocumentInstance | null`, `NextResponse | null`).
+- APIs return structured JSON envelopes with `success` + `data`/`error` patterns in many routes.
+- Domain functions frequently return typed discriminated shapes (`{ ok: boolean; error?: string }`, `{ valid: boolean; missing: string[] }`).
 
 ## Module Design
 
 **Exports:**
-- Predominantly named exports for hooks/services/utils (`export function`, `export const`).
-- Default exports are used mainly for Next page components and some components (`export default function NewDocumentPage`, `export default DocumentEditor`).
+- Mixed strategy:
+  - Named exports for utilities/hooks (`src/lib/security/rateLimit.ts`, `src/hooks/useWallet.ts`).
+  - Default exports mainly for Next pages/components (`src/app/**/page.tsx`, `src/components/document/DocumentEditor.tsx`).
+- Constants and interfaces are frequently exported for reuse (`src/types/index.ts`, `src/lib/contracts/marketplace.ts`).
 
 **Barrel Files:**
-- Barrel export pattern is actively used for module boundaries:
-  - `src/components/document/index.ts`
+- Barrel files are actively used to simplify imports:
   - `src/components/chain/index.ts`
-  - `src/lib/auth/index.ts`
-  - `src/config/index.ts`
+  - `src/components/document/index.ts`
+  - `src/lib/document/index.ts`
+- Convention: keep barrel files thin and re-export only; no business logic inside.
 
 ---
 

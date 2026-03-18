@@ -4,92 +4,91 @@
 
 ## APIs & External Services
 
-**Blockchain Networks (EVM + Substrate):**
-- Polkadot Hub Testnet EVM RPC - Contract reads/writes and tx verification.
-  - SDK/Client: `ethers` in `src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`, `scripts/testnet-config-check.js`.
-  - Auth: `PRIVATE_KEY`/`ADMIN_PRIVATE_KEY` for signing flows in `hardhat.config.js`, `src/app/api/admin/breaches/route.ts`.
-- Asset Hub WS endpoints - Polkadot API connections for balances/POC tx flows.
-  - SDK/Client: `@polkadot/api` in `src/lib/polkadot/assetHub.ts`.
-  - Auth: Wallet extension signer (`@polkadot/extension-dapp`) in `src/hooks/useWallet.ts`.
-- KILT network endpoints (Spiritnet/Peregrine) - DID/credential-related network configuration.
-  - SDK/Client: endpoint definitions in `src/lib/polkadot/kilt.ts`, `src/config/chains.ts`.
-  - Auth: No external provider token detected; uses wallet/identity data.
-- Phala endpoints and mock TEE API surface - AI/validation integration path.
-  - SDK/Client: local proxy route in `src/app/api/phala-proxy/route.ts`, helper in `src/lib/polkadot/phala.ts`, endpoint constants in `src/lib/polkadot/phala.ts`.
-  - Auth: Not detected for MVP mock mode.
+**Blockchain RPC and Contract Services:**
+- Polkadot Hub EVM RPC - EVM read/validate calls and tx verification
+  - SDK/Client: `ethers` (`src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`)
+  - Auth: `POLKADOT_HUB_RPC_URL`, plus signer keys like `ADMIN_PRIVATE_KEY` or `PRIVATE_KEY`
+- Polkadot Asset Hub / Westend WS endpoints - substrate side integrations
+  - SDK/Client: `@polkadot/api` (`src/lib/polkadot/assetHub.ts`, `src/lib/indexer/config.ts`)
+  - Auth: public RPC/WS; wallet signing via extension on client
+- KILT network endpoints (Peregrine/Spiritnet) - identity-oriented network wiring
+  - SDK/Client: `@polkadot/api`, optional `@kiltprotocol/sdk-js` dependency (`src/config/chains.ts`, `src/lib/polkadot/kilt.ts`)
+  - Auth: wallet/chain access (no separate API key in repo)
+- Phala network endpoints (PoC-6/Mainnet) - configured as target endpoints for TEE flow
+  - SDK/Client: local wrapper + proxy route (`src/lib/polkadot/phala.ts`, `src/app/api/phala-proxy/route.ts`)
+  - Auth: none configured in repo for external Phala API; current mode is local mock proxy
 
-**Public Infrastructure/Reference Services:**
-- Block explorer links (`blockscout`, `subscan`) in UI/config: `src/config/DocuMateABI.ts`, `src/config/chains.ts`, `src/app/dashboard/market/page.tsx`.
-- IPFS gateway links used for viewing assets (`ipfs.io`) in admin UI pages: `src/app/admin/verification/page.tsx`, `src/app/admin/breaches/page.tsx`.
+**Content and Explorer Services:**
+- IPFS gateway links for evidence/template CIDs
+  - SDK/Client: direct URL usage (e.g., `https://ipfs.io/ipfs/...`) in UI (`src/app/admin/breaches/page.tsx`, `src/app/admin/verification/page.tsx`)
+  - Auth: none
+- Block explorer and faucet URLs
+  - SDK/Client: direct links (`src/config/DocuMateABI.ts`, `src/components/chain/WalletConnect.tsx`)
+  - Auth: none
 
 ## Data Storage
 
 **Databases:**
-- SQLite (primary app DB through Prisma)
-  - Connection: `DATABASE_URL` (`prisma.config.ts`, `src/lib/indexer/config.ts`).
-  - Client: Prisma (`@prisma/client`) in `src/lib/db/index.ts`.
-- Shared document table persisted through Prisma raw SQL APIs
-  - Implementation: `src/app/api/documents/route.ts`, `src/app/api/documents/[id]/route.ts`.
+- SQLite via Prisma datasource
+  - Connection: `DATABASE_URL`
+  - Client: `@prisma/client` singleton in `src/lib/db/index.ts`
+- Indexer config reuses same DB URL for chain indexing services
+  - Connection: `DATABASE_URL` fallback to `file:./dev.db` in `src/lib/indexer/config.ts`
 
 **File Storage:**
-- Local filesystem only for repository/runtime assets.
-- IPFS CIDs are stored as metadata fields (`ipfsCid`, `previewCid`) in `prisma/schema.prisma`; no direct IPFS upload client implementation detected in `src/**`.
+- Local filesystem for app assets and generated media (`public/`, `docs/demo-video.mp4`, `out/`)
+- IPFS CIDs are stored/referenced as metadata values, but direct upload client is not implemented in server code (`prisma/schema.prisma`, `src/app/api/market/mint/route.ts`)
 
 **Caching:**
-- Browser local/session storage used for client-side state/documents (`src/lib/document/documentStore.ts`, `src/app/dashboard/filing/page.tsx`, `src/hooks/useWallet.ts`, `src/hooks/useEVMWallet.ts`).
-- No Redis/Memcached integration detected.
+- None detected (no Redis/memcached integration)
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Custom wallet-based Sign-In With Polkadot (SIWP).
-  - Implementation: challenge/signature/session logic in `src/lib/auth/siwp.ts`.
-  - API endpoints: `src/app/api/auth/challenge/route.ts`, `src/app/api/auth/verify/route.ts`.
-  - Session transport: HTTP-only cookie `session_token` in `src/app/api/auth/verify/route.ts`.
+- Custom Sign-In with Polkadot (SIWP-like flow)
+  - Implementation: challenge/verify endpoints with signature verification via `@polkadot/util-crypto` and cookie session token (`src/app/api/auth/challenge/route.ts`, `src/app/api/auth/verify/route.ts`, `src/lib/auth/siwp.ts`)
 
-**Identity Verification:**
-- Runtime precompile identity checks for marketplace contracts (Track 2 path) documented in `docs/precompile-integration.md` and implemented in Solidity contract layer (`contracts/DocuMateMarketplace.sol`, `contracts/interfaces/IIdentityPrecompile.sol`).
+Additional identity integrations:
+- Runtime identity precompile for verification gating in contracts (Track 2 path documented in `README.md` and deployment scripts)
+- KILT light DID and self-signed VC utilities implemented locally (`src/lib/polkadot/kilt.ts`)
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None detected (no Sentry/DataDog/New Relic integration files/imports found).
+- None detected (no Sentry/Datadog/newrelic SDK imports)
 
 **Logs:**
-- Console logging in API routes and scripts (`console.error`/`console.log`) across `src/app/api/**` and `scripts/**`.
-- Admin activity persisted in DB via `AdminLog` model updates (for selected actions) in routes such as `src/app/api/admin/breaches/route.ts` and `src/app/api/market/mint/route.ts`.
+- Application/script logging through `console.*` in API routes and scripts (`src/app/api/**`, `scripts/*.js`)
+- Prisma query/error logging enabled in development mode (`src/lib/db/index.ts`)
+- Administrative audit trail persisted in database via `AdminLog` model (`prisma/schema.prisma`, `src/app/api/admin/**`)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Not explicitly configured in-repo. Next.js app is buildable via npm scripts in `package.json`.
+- Next.js Node deployment target is implied by app structure; platform is not explicitly pinned in repo config files
+- Contract deployments target Polkadot Hub testnet via Hardhat network config (`hardhat.config.js`)
 
 **CI Pipeline:**
-- Not detected (`.github/workflows/*` not present).
-- Release validation is script-driven locally via `release:checklist` in `package.json`.
+- Not detected (`.github/workflows/` not present)
+- Validation performed through npm scripts and manual checklist automation (`package.json`, `SUBMISSION.md`)
 
 ## Environment Configuration
 
 **Required env vars:**
-- Chain/RPC: `POLKADOT_HUB_RPC_URL`.
-- Contract addresses: `MARKETPLACE_CONTRACT_ADDRESS`, `STAKING_CONTRACT_ADDRESS`.
-- Signing/admin keys: `PRIVATE_KEY`, `ADMIN_PRIVATE_KEY`.
-- DB/runtime: `DATABASE_URL`, `NODE_ENV`.
-- Deployment behavior: `TREASURY_ADDRESS`, `BURN_ADDRESS`, `IDENTITY_PRECOMPILE`, `USE_MOCK_VERIFICATION`, `TEST_WALLET_ADDRESS`, `DOCUMATE_NETWORK`.
-- Evidence: `hardhat.config.js`, `prisma.config.ts`, `scripts/deploy-track2.js`, `scripts/testnet-config-check.js`, `src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`, `src/config/contracts.ts`.
+- Core app/DB/contracts: `DATABASE_URL`, `POLKADOT_HUB_RPC_URL`, `MARKETPLACE_CONTRACT_ADDRESS`, `STAKING_CONTRACT_ADDRESS`
+- Signing/admin operations: `PRIVATE_KEY`, `ADMIN_PRIVATE_KEY`
+- Deployment/smoke overrides: `TREASURY_ADDRESS`, `BURN_ADDRESS`, `IDENTITY_PRECOMPILE`, `USE_MOCK_VERIFICATION`, `TEST_WALLET_ADDRESS`
 
 **Secrets location:**
-- Environment-file based setup indicated by `.env.example` and `dotenv` usage in `hardhat.config.js`, `prisma.config.ts`, and scripts under `scripts/**`.
+- Local `.env` file present in repo root (gitignored per submission checklist); template keys in `.env.example`
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- None detected in implemented API routes (`src/app/api/**`).
-- A webhook path appears only in documentation (`ARCHITECTURE.md`) and no corresponding source route exists under `src/app/api`.
+- None detected (no webhook receiver routes or signature-verification handlers)
 
 **Outgoing:**
-- Chain RPC/contract calls to Polkadot Hub via `ethers` (`src/app/api/market/mint/route.ts`, `src/app/api/admin/breaches/route.ts`).
-- Internal service calls from browser to app endpoints: `/api/documents`, `/api/documents/[id]`, `/api/phala-proxy` in `src/lib/document/documentStore.ts` and `src/lib/polkadot/phala.ts`.
+- None detected (no webhook dispatch clients)
 
 ---
 
