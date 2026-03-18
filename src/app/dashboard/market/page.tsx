@@ -131,7 +131,7 @@ const categoryColors: Record<TemplateCategory, string> = {
 export default function MarketPage() {
     const isConnected = useIsEVMConnected();
     const account = useEVMAccount();
-    const { executeTransaction, checkVerified } = useDocuMateContract();
+    const { executeTransaction, checkWalletVerificationForActions } = useDocuMateContract();
     const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | "All">("All");
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -153,6 +153,33 @@ export default function MarketPage() {
         success: boolean;
         message: string;
     } | null>(null);
+    const [canPurchase, setCanPurchase] = useState(false);
+    const [verificationPrompt, setVerificationPrompt] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const refreshVerification = async () => {
+            if (!account) {
+                if (isMounted) {
+                    setCanPurchase(false);
+                    setVerificationPrompt(null);
+                }
+                return;
+            }
+
+            const result = await checkWalletVerificationForActions(account);
+            if (!isMounted) return;
+            setCanPurchase(result.verified);
+            setVerificationPrompt(result.verified ? null : (result.message || null));
+        };
+
+        void refreshVerification();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [account, checkWalletVerificationForActions]);
 
     // Fetch templates from API
     const fetchTemplates = useCallback(async () => {
@@ -245,11 +272,11 @@ export default function MarketPage() {
         setLastTxHash(null);
 
         try {
-            const isVerified = await checkVerified(account);
-            if (!isVerified) {
+            const verification = await checkWalletVerificationForActions(account);
+            if (!verification.verified) {
                 setPurchaseResult({
                     success: false,
-                    message: "Wallet DID is not verified for marketplace transactions yet. Please complete verification first.",
+                    message: verification.message || "You need to verify your identity before minting. Connect your KILT DID on Polkadot Hub.",
                 });
                 return;
             }
@@ -531,6 +558,14 @@ export default function MarketPage() {
                                         >
                                             Already Owned
                                         </button>
+                                    ) : !canPurchase ? (
+                                        <button
+                                            disabled
+                                            className="w-full mt-4 py-2.5 bg-gray-800/70 text-gray-500 rounded-xl cursor-not-allowed font-medium"
+                                            title={verificationPrompt || "Verification required"}
+                                        >
+                                            Verify Identity to Purchase
+                                        </button>
                                     ) : (
                                         <button
                                             onClick={() => setPurchaseTarget(template)}
@@ -622,6 +657,12 @@ export default function MarketPage() {
                             </div>
                         )}
 
+                        {!canPurchase && verificationPrompt && (
+                            <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+                                {verificationPrompt}
+                            </div>
+                        )}
+
                         {(txStatus || lastTxHash) && (
                             <div className="mb-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-cyan-200">
                                 {txStatus && <p>{txStatus}</p>}
@@ -643,7 +684,7 @@ export default function MarketPage() {
                             {!purchaseResult?.success && (
                                 <button
                                     onClick={() => handlePurchase(purchaseTarget)}
-                                    disabled={isPurchasing}
+                                    disabled={isPurchasing || !canPurchase}
                                     className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {isPurchasing ? (

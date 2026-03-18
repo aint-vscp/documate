@@ -42,7 +42,7 @@ interface ActivityItem {
 export default function ProfilePage() {
     const account = useEVMAccount();
     const isConnected = useIsEVMConnected();
-    const { checkVerified, verifyDID, getPlatformStats } = useDocuMateContract();
+    const { checkVerified, getPlatformStats } = useDocuMateContract();
     const { stakeReputation, unstake, getStakeInfo, getPoolStats } = useStakingContract();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoadingReputation, setIsLoadingReputation] = useState(false);
@@ -52,7 +52,7 @@ export default function ProfilePage() {
     const [isSubmittingBreach, setIsSubmittingBreach] = useState(false);
     const [breachSuccess, setBreachSuccess] = useState(false);
     const [evmVerified, setEvmVerified] = useState(false);
-    const [isVerifying, setIsVerifying] = useState(false);
+    const [isCheckingVerification, setIsCheckingVerification] = useState(false);
     const [platformStats, setPlatformStats] = useState<{ totalDocuments: number; totalTransactions: number; totalVolume: string } | null>(null);
     const [stakeInfo, setStakeInfo] = useState<{ staked: boolean; amount: string; since: number } | null>(null);
     const [poolStats, setPoolStats] = useState<{ totalStaked: string; totalSlashed: string; poolBalance: string; stakerCount: number } | null>(null);
@@ -184,17 +184,17 @@ export default function ProfilePage() {
         }
     }, [account, checkVerified, fetchActivity, fetchOnChainStats, getStakeInfo, getPoolStats, loadDirectoryProfile]);
 
-    const handleVerifyOnChain = async () => {
+    const handleCheckVerificationStatus = async () => {
         if (!account) return;
-        setIsVerifying(true);
+        setIsCheckingVerification(true);
         try {
-            await verifyDID(account);
-            setEvmVerified(true);
+            const verified = await checkVerified(account);
+            setEvmVerified(verified);
         } catch (error) {
             console.error("On-chain verification failed:", error);
-            alert("Verification failed. Only the contract owner can verify addresses.");
+            alert("Unable to check verification status right now. Please try again.");
         } finally {
-            setIsVerifying(false);
+            setIsCheckingVerification(false);
         }
     };
 
@@ -660,18 +660,30 @@ export default function ProfilePage() {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex items-center justify-between">
+                        <div className="space-y-4">
                             <div>
                                 <p className="text-yellow-400 font-medium">Not yet verified on-chain</p>
-                                <p className="text-gray-500 text-sm">Verify your DID on the Polkadot Hub EVM contract</p>
+                                <p className="text-gray-500 text-sm">
+                                    Verification is done via your KILT DID on Polkadot Hub.
+                                </p>
                             </div>
-                            <button
-                                onClick={handleVerifyOnChain}
-                                disabled={isVerifying}
-                                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
-                            >
-                                {isVerifying ? "Verifying..." : "Verify DID"}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <a
+                                    href="https://did.kilt.io"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-4 py-2 bg-white/[0.06] border border-white/[0.12] text-white rounded-xl hover:bg-white/[0.1] transition-colors text-sm font-medium"
+                                >
+                                    Create/Manage KILT DID
+                                </a>
+                                <button
+                                    onClick={handleCheckVerificationStatus}
+                                    disabled={isCheckingVerification}
+                                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                                >
+                                    {isCheckingVerification ? "Checking..." : "Check my verification status"}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

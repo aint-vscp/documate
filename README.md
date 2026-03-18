@@ -1,5 +1,7 @@
 # DocuMate
 
+![DocuMate Thumbnail](docs/thumbnail.png)
+
 DocuMate is an evidence-first trust layer for freelance and contract work on Polkadot Hub Testnet. It turns identity-gated actions, settlement, and enforcement into verifiable on-chain outcomes so disputes can be resolved from reproducible proof.
 
 - Track: Polkadot Solidity Hackathon Track 2 (PVM Smart Contracts)

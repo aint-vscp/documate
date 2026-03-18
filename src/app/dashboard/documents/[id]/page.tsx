@@ -7,7 +7,6 @@
 
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useEVMWallet } from "@/hooks/useEVMWallet";
 import { useDocuMateContract } from "@/hooks/useDocuMateContract";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
@@ -21,7 +20,6 @@ import {
     createSignature,
     hashDocument,
     analyzeReputationRiskForDocument,
-    resolveSignatureImage,
 } from "@/lib/document";
 import { addReputationTagsForAddress, deriveReputationTags } from "@/lib/reputation";
 import type { DocumentInstance } from "@/types";
@@ -42,8 +40,6 @@ export default function DocumentViewPage(props: PageProps) {
     const [txStatus, setTxStatus] = useState<string | null>(null);
     const [earnedTags, setEarnedTags] = useState<string[]>([]);
     const [riskSignal, setRiskSignal] = useState<ReputationRiskSignal | null>(null);
-    const [senderSignatureImage, setSenderSignatureImage] = useState<string | null>(null);
-    const [receiverSignatureImage, setReceiverSignatureImage] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -78,35 +74,6 @@ export default function DocumentViewPage(props: PageProps) {
         };
     }, [params.id]);
 
-    useEffect(() => {
-        let isMounted = true;
-
-        const loadSignatureImages = async () => {
-            if (!document) {
-                if (isMounted) {
-                    setSenderSignatureImage(null);
-                    setReceiverSignatureImage(null);
-                }
-                return;
-            }
-
-            const [senderImage, receiverImage] = await Promise.all([
-                resolveSignatureImage(document.senderSignature),
-                resolveSignatureImage(document.receiverSignature),
-            ]);
-
-            if (!isMounted) return;
-            setSenderSignatureImage(senderImage);
-            setReceiverSignatureImage(receiverImage);
-        };
-
-        loadSignatureImages();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [document]);
-
     const handleSend = async () => {
         if (!document) return;
 
@@ -121,7 +88,7 @@ export default function DocumentViewPage(props: PageProps) {
         }
     };
 
-    const handleSign = async (drawnSignatureDataUrl?: string) => {
+    const handleSign = async () => {
         if (!document || !account) return;
 
         const normalizedAccount = account.toLowerCase();
@@ -129,7 +96,7 @@ export default function DocumentViewPage(props: PageProps) {
         const isReceiver = document.receiver.toLowerCase() === normalizedAccount;
 
         // Create signature
-        const signature = await createSignature(account, document.content, drawnSignatureDataUrl);
+        const signature = await createSignature(account, document.content);
 
         let updatedDoc: DocumentInstance;
 
@@ -466,29 +433,6 @@ export default function DocumentViewPage(props: PageProps) {
                         </div>
                     )}
 
-                    {(senderSignatureImage || receiverSignatureImage) && (
-                        <div className="mt-4 bg-gray-800/50 rounded-xl border border-gray-700/50 p-4">
-                            <h4 className="text-sm font-medium text-white mb-3">Document Signatures</h4>
-                            <div className="space-y-3">
-                                <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 p-3">
-                                    <p className="text-xs text-gray-400 mb-2">Sender Signature</p>
-                                    {senderSignatureImage ? (
-                                        <Image src={senderSignatureImage} alt="Sender signature" width={240} height={80} unoptimized className="max-h-20 h-auto w-auto rounded bg-white p-1" />
-                                    ) : (
-                                        <p className="text-xs text-gray-500">Not signed yet</p>
-                                    )}
-                                </div>
-                                <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 p-3">
-                                    <p className="text-xs text-gray-400 mb-2">Receiver Signature</p>
-                                    {receiverSignatureImage ? (
-                                        <Image src={receiverSignatureImage} alt="Receiver signature" width={240} height={80} unoptimized className="max-h-20 h-auto w-auto rounded bg-white p-1" />
-                                    ) : (
-                                        <p className="text-xs text-gray-500">Not signed yet</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

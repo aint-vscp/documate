@@ -43,6 +43,7 @@ export default function PeopleDirectoryPage() {
     const [engagementType, setEngagementType] = useState("");
     const [results, setResults] = useState<DirectoryEntry[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
     const searchParams = useMemo(() => {
         const params = new URLSearchParams();
@@ -67,12 +68,15 @@ export default function PeopleDirectoryPage() {
                 if (!isMounted) return;
                 if (response.ok && Array.isArray(payload?.data)) {
                     setResults(payload.data as DirectoryEntry[]);
+                    setEmptyReason(typeof payload?.meta?.emptyReason === "string" ? payload.meta.emptyReason : null);
                 } else {
                     setResults([]);
+                    setEmptyReason(null);
                 }
             } catch {
                 if (!isMounted) return;
                 setResults([]);
+                setEmptyReason(null);
             } finally {
                 if (isMounted) {
                     setIsLoading(false);
@@ -131,7 +135,11 @@ export default function PeopleDirectoryPage() {
                 </div>
             ) : results.length === 0 ? (
                 <div className="surface-card p-10 text-center">
-                    <p className="text-gray-400">No matching profiles found.</p>
+                    <p className="text-gray-400">
+                        {emptyReason === "NO_VERIFIED_USERS"
+                            ? "No verified professionals found yet. Be the first to verify your identity."
+                            : "No matching profiles found."}
+                    </p>
                 </div>
             ) : (
                 <div className="grid md:grid-cols-2 gap-4">

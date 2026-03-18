@@ -13,6 +13,7 @@ import {
     type DragEvent,
 } from "react";
 import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
+import { useDocuMateContract } from "@/hooks/useDocuMateContract";
 import { WalletConnect } from "@/components/chain";
 import { RevenueSplit } from "@/components/market";
 import Link from "next/link";
@@ -64,12 +65,15 @@ function execCmd(cmd: string, value?: string) {
 export default function TemplateStudioPage() {
     const isConnected = useIsEVMConnected();
     const account     = useEVMAccount();
+    const { checkWalletVerificationForActions } = useDocuMateContract();
 
     const [step, setStep]                         = useState<MintingStep>("create");
     const [isProcessing, setIsProcessing]         = useState(false);
     const [mintError, setMintError]               = useState<string | null>(null);
     const [mintedTemplateId, setMintedTemplateId] = useState<string | null>(null);
     const [mintPaymentTx, setMintPaymentTx]       = useState<string | null>(null);
+    const [canMintOnChain, setCanMintOnChain] = useState(false);
+    const [verificationPrompt, setVerificationPrompt] = useState<string | null>(null);
 
     const [form, setForm] = useState<TemplateForm>({
         title: "", description: "", category: "LEGAL",
@@ -156,6 +160,31 @@ export default function TemplateStudioPage() {
             }
         };
     }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const refreshVerification = async () => {
+            if (!account) {
+                if (isMounted) {
+                    setCanMintOnChain(false);
+                    setVerificationPrompt(null);
+                }
+                return;
+            }
+
+            const result = await checkWalletVerificationForActions(account);
+            if (!isMounted) return;
+            setCanMintOnChain(result.verified);
+            setVerificationPrompt(result.verified ? null : (result.message || null));
+        };
+
+        void refreshVerification();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [account, checkWalletVerificationForActions]);
 
     const tbBold      = () => { execCmd("bold");                     editorRef.current?.focus(); };
     const tbItalic    = () => { execCmd("italic");                   editorRef.current?.focus(); };
@@ -291,6 +320,11 @@ export default function TemplateStudioPage() {
         setMintPaymentTx(null);
 
         try {
+            const verification = await checkWalletVerificationForActions(account);
+            if (!verification.verified) {
+                throw new Error(verification.message || "You need to verify your identity before minting. Connect your KILT DID on Polkadot Hub.");
+            }
+
             if (!window.ethereum) {
                 throw new Error("MetaMask provider unavailable.");
             }
@@ -729,6 +763,11 @@ export default function TemplateStudioPage() {
                     {mintError && (
                         <div className="rounded-lg border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-sm text-red-400">{mintError}</div>
                     )}
+                    {!canMintOnChain && verificationPrompt && (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                            {verificationPrompt}
+                        </div>
+                    )}
                     {mintPaymentTx && (
                         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-3 text-xs text-emerald-300 font-mono">
                             Mint fee paid on-chain: {mintPaymentTx}
@@ -736,7 +775,7 @@ export default function TemplateStudioPage() {
                     )}
                     <div className="flex gap-3">
                         <button onClick={() => setStep("pricing")} disabled={isProcessing} className="flex-1 py-3 bg-white/[0.05] text-white rounded-lg border border-white/[0.07] text-sm font-medium disabled:opacity-40">Back</button>
-                        <button onClick={handleMint} disabled={isProcessing} className="flex-1 py-3 bg-cyan-400 text-black rounded-lg font-semibold hover:bg-cyan-300 text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                        <button onClick={handleMint} disabled={isProcessing || !canMintOnChain} className="flex-1 py-3 bg-cyan-400 text-black rounded-lg font-semibold hover:bg-cyan-300 text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                             {isProcessing ? (
                                 <><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> Minting...</>
                             ) : `Mint Template (${totalCost} $DOCU)`}

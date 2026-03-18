@@ -29,8 +29,13 @@ export async function GET(request: NextRequest) {
         const search = (request.nextUrl.searchParams.get("q") || "").trim().toLowerCase();
         const entityType = (request.nextUrl.searchParams.get("entityType") || "").trim().toUpperCase();
         const engagementType = (request.nextUrl.searchParams.get("engagementType") || "").trim().toUpperCase();
+        const includeUnverified = (request.nextUrl.searchParams.get("includeUnverified") || "").trim().toLowerCase() === "true";
 
         const filters: string[] = ["1=1"];
+
+        if (!includeUnverified) {
+            filters.push("did IS NOT NULL AND TRIM(did) <> ''");
+        }
 
         if (search) {
             const q = escapeSqlString(search);
@@ -73,7 +78,29 @@ export async function GET(request: NextRequest) {
             updatedAt: row.updatedAt,
         }));
 
-        return NextResponse.json({ success: true, data });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const verifiedCountRows = await prisma.$queryRawUnsafe<any[]>(`
+            SELECT COUNT(*) AS count
+            FROM DirectoryProfile
+            WHERE did IS NOT NULL AND TRIM(did) <> ''
+        `);
+
+        const verifiedProfilesCount = Number(verifiedCountRows?.[0]?.count ?? 0);
+        const emptyReason = data.length > 0
+            ? null
+            : (verifiedProfilesCount === 0
+                ? "NO_VERIFIED_USERS"
+                : "NO_MATCHING_PROFILES");
+
+        return NextResponse.json({
+            success: true,
+            data,
+            meta: {
+                includeUnverified,
+                verifiedProfilesCount,
+                emptyReason,
+            },
+        });
     } catch (error) {
         console.error("Directory search error:", error);
         return NextResponse.json(

@@ -4,6 +4,8 @@ import { useCallback } from "react";
 import { ethers } from "ethers";
 import { DOCUMATE_ABI, CONTRACT_ADDRESS, POLKADOT_HUB_TESTNET } from "@/config/DocuMateABI";
 
+const VERIFICATION_BLOCK_MESSAGE = "You need to verify your identity before minting. Connect your KILT DID on Polkadot Hub.";
+
 type EthereumProvider = {
     isMetaMask?: boolean;
     request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -108,6 +110,25 @@ export function useDocuMateContract() {
         }
     }, [getReadContract]);
 
+    const checkWalletVerificationForActions = useCallback(async (address: string): Promise<{ verified: boolean; message?: string }> => {
+        if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+            return {
+                verified: false,
+                message: "Connect your wallet before attempting this action.",
+            };
+        }
+
+        const verified = await checkVerified(address);
+        if (!verified) {
+            return {
+                verified: false,
+                message: VERIFICATION_BLOCK_MESSAGE,
+            };
+        }
+
+        return { verified: true };
+    }, [checkVerified]);
+
     const uploadDocument = useCallback(async (ipfsHash: string) => {
         const contract = await getWriteContract();
         if (!contract) throw new Error("Contract not available");
@@ -156,13 +177,9 @@ export function useDocuMateContract() {
         }
 
         if (signerAddress && typeof (contract as unknown as { isVerified?: unknown }).isVerified === "function") {
-            try {
-                const verified = await contract.isVerified(signerAddress);
-                if (!verified) {
-                    throw new Error("Wallet DID is not verified for marketplace transactions yet. Please complete verification first.");
-                }
-            } catch {
-                throw new Error("Wallet DID is not verified for marketplace transactions yet. Please complete verification first.");
+            const verification = await checkWalletVerificationForActions(signerAddress);
+            if (!verification.verified) {
+                throw new Error(verification.message || VERIFICATION_BLOCK_MESSAGE);
             }
         }
 
@@ -184,14 +201,6 @@ export function useDocuMateContract() {
         } catch (error) {
             throw new Error(decodeContractError(error));
         }
-    }, [getWriteContract]);
-
-    const verifyDID = useCallback(async (userAddress: string) => {
-        const contract = await getWriteContract();
-        if (!contract) throw new Error("Contract not available");
-        await assertContractTargetChain(contract);
-        const tx = await contract.mockKiltPrecompile(userAddress);
-        return tx.wait();
     }, [getWriteContract]);
 
     const getPlatformStats = useCallback(async () => {
@@ -251,10 +260,10 @@ export function useDocuMateContract() {
         getReadContract,
         getWriteContract,
         checkVerified,
+        checkWalletVerificationForActions,
         uploadDocument,
         canUploadDocument,
         executeTransaction,
-        verifyDID,
         getPlatformStats,
         getUserDocuments,
         calculateSplit,

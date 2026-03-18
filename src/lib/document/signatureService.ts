@@ -200,26 +200,17 @@ export async function verifyDocumentHash(
  */
 export async function createSignature(
     signerAddress: string,
-    documentContent: string,
-    drawnSignatureDataUrl?: string
+    documentContent: string
 ): Promise<DocumentSignature> {
     const contentHash = await hashDocument(documentContent);
     const profile = loadUserProfile();
     const signerDid = profile?.did;
-
-    let signatureValue: string | undefined;
-    if (drawnSignatureDataUrl) {
-        await saveReusableEncryptedSignature(signerAddress, drawnSignatureDataUrl, signerDid);
-        // Store renderable image data in the document signature block.
-        signatureValue = drawnSignatureDataUrl;
-    }
 
     return {
         signer: signerAddress,
         signerDid,
         signedAt: new Date().toISOString(),
         contentHash,
-        signature: signatureValue,
     };
 }
 
