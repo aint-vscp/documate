@@ -1,0 +1,161 @@
+﻿=== 01-01 audit run: 2026-03-18 19:18:36 ===
+
+contracts\DocuMate.sol:60:    event DocumentUploaded(
+contracts\DocuMate.sol:176:    function uploadDocument(
+contracts\DocuMate.sol:277:    function getDocument(
+
+
+
+src\app\dashboard\documents\[id]\page.tsx:145:            const 
+uploadAvailable = await canUploadDocument();
+src\app\dashboard\documents\[id]\page.tsx:152:                    
+transactionHash: `offchain-anchor:${Date.now()}`,
+src\app\dashboard\documents\[id]\page.tsx:156:                
+setTxStatus("On-chain anchoring unavailable for this contract. Document moved 
+to receiver-sign with encrypted off-chain anchor.");
+src\app\dashboard\documents\[id]\page.tsx:170:                
+setTxStatus("Anchoring document hash on-chain (sender pays gas)...");
+src\app\dashboard\documents\[id]\page.tsx:171:                const receipt = 
+await uploadDocument(finalHash);
+src\app\dashboard\documents\[id]\page.tsx:190:                if 
+(message.includes("uploadDocument() is not available")) {
+src\app\dashboard\documents\[id]\page.tsx:196:                        
+transactionHash: `offchain-anchor:${Date.now()}`,
+src\app\dashboard\documents\[id]\page.tsx:200:                    
+setTxStatus("On-chain anchoring unavailable for this contract. Document moved 
+to receiver-sign with encrypted off-chain anchor.");
+src\config\DocuMateABI.ts:30:    "function uploadDocument(string calldata 
+_ipfsHash) external returns (uint256)",
+src\hooks\useDocuMateContract.ts:102:            throw new Error("Document 
+anchoring contract is misconfigured. uploadDocument() is not available at the 
+configured address.");
+src\hooks\useDocuMateContract.ts:106:            const tx = await 
+contract.uploadDocument(ipfsHash);
+
+
+
+src\app\api\activity\route.ts:16:async function ensureSharedDocumentTable(): 
+Promise<void> {
+src\app\api\activity\route.ts:17:    await prisma.$executeRawUnsafe(`
+src\app\api\activity\route.ts:18:        CREATE TABLE IF NOT EXISTS 
+SharedDocument (
+src\app\api\activity\route.ts:25:            payload TEXT NOT NULL
+src\app\api\activity\route.ts:40:        await ensureSharedDocumentTable();
+src\app\api\activity\route.ts:43:        const purchases = await 
+prisma.$queryRawUnsafe<any[]>(`
+src\app\api\activity\route.ts:58:        const docs = await 
+prisma.$queryRawUnsafe<any[]>(`
+src\app\api\activity\route.ts:59:            SELECT payload
+src\app\api\activity\route.ts:60:            FROM SharedDocument
+src\app\api\activity\route.ts:69:                    const payload = 
+JSON.parse(String(row.payload ?? "")) as {
+src\app\api\activity\route.ts:71:                        transactionHash?: 
+string;
+src\app\api\activity\route.ts:76:                    const txHash = 
+String(payload.transactionHash ?? "");
+src\app\api\activity\route.ts:84:                        createdAt: 
+payload.finalizedAt || payload.updatedAt || new Date().toISOString(),
+src\app\api\activity\route.ts:85:                        referenceId: 
+payload.id || "",
+src\app\api\directory\profile\route.ts:4:interface DirectoryProfilePayload {
+src\app\api\directory\profile\route.ts:29:    await prisma.$executeRawUnsafe(`
+src\app\api\directory\profile\route.ts:44:    await prisma.$executeRawUnsafe(
+src\app\api\directory\profile\route.ts:47:    await prisma.$executeRawUnsafe(
+src\app\api\directory\profile\route.ts:50:    await prisma.$executeRawUnsafe(
+src\app\api\directory\profile\route.ts:69:        const rows = await 
+prisma.$queryRawUnsafe<any[]>(`
+src\app\api\directory\profile\route.ts:107:        const body = (await 
+request.json()) as DirectoryProfilePayload;
+src\app\api\directory\profile\route.ts:129:        await 
+prisma.$executeRawUnsafe(`
+src\app\api\directory\search\route.ts:9:    await prisma.$executeRawUnsafe(`
+src\app\api\directory\search\route.ts:55:        const rows = await 
+prisma.$queryRawUnsafe<any[]>(`
+src\app\api\directory\tags\route.ts:17:    await prisma.$executeRawUnsafe(`
+src\app\api\directory\tags\route.ts:49:        const rows = await 
+prisma.$queryRawUnsafe<any[]>(`
+src\app\api\directory\tags\route.ts:63:        await prisma.$executeRawUnsafe(`
+src\app\api\documents\route.ts:14:    await prisma.$executeRawUnsafe(`
+src\app\api\documents\route.ts:15:        CREATE TABLE IF NOT EXISTS 
+SharedDocument (
+src\app\api\documents\route.ts:22:            payload TEXT NOT NULL
+src\app\api\documents\route.ts:26:    await prisma.$executeRawUnsafe(
+src\app\api\documents\route.ts:27:        "CREATE INDEX IF NOT EXISTS 
+idx_shared_document_sender ON SharedDocument(sender)"
+src\app\api\documents\route.ts:29:    await prisma.$executeRawUnsafe(
+src\app\api\documents\route.ts:30:        "CREATE INDEX IF NOT EXISTS 
+idx_shared_document_receiver ON SharedDocument(receiver)"
+src\app\api\documents\route.ts:32:    await prisma.$executeRawUnsafe(
+src\app\api\documents\route.ts:33:        "CREATE INDEX IF NOT EXISTS 
+idx_shared_document_updated_at ON SharedDocument(updatedAt DESC)"
+src\app\api\documents\route.ts:37:function parsePayload(payload: string): 
+DocumentInstance | null {
+src\app\api\documents\route.ts:39:        const parsed = JSON.parse(payload) 
+as DocumentInstance;
+src\app\api\documents\route.ts:64:        const rows = await 
+prisma.$queryRawUnsafe<any[]>(
+src\app\api\documents\route.ts:66:                SELECT payload
+src\app\api\documents\route.ts:67:                FROM SharedDocument
+src\app\api\documents\route.ts:74:            .map((row) => 
+parsePayload(String(row.payload ?? "")))
+src\app\api\documents\route.ts:126:        const escapedPayload = 
+JSON.stringify(normalizedDoc).replace(/'/g, "''");
+src\app\api\documents\route.ts:128:        await prisma.$executeRawUnsafe(`
+src\app\api\documents\route.ts:129:            INSERT INTO SharedDocument (id, 
+sender, receiver, status, createdAt, updatedAt, payload)
+src\app\api\documents\route.ts:130:            VALUES ('${escapedId}', 
+'${escapedSender}', '${escapedReceiver}', '${escapedStatus}', 
+'${escapedCreatedAt}', '${escapedUpdatedAt}', '${escapedPayload}')
+src\app\api\documents\route.ts:136:                payload = excluded.payload
+src\app\api\documents\[id]\route.ts:9:function parsePayload(payload: string): 
+DocumentInstance | null {
+src\app\api\documents\[id]\route.ts:11:        const parsed = 
+JSON.parse(payload) as DocumentInstance;
+src\app\api\documents\[id]\route.ts:24:    await prisma.$executeRawUnsafe(`
+src\app\api\documents\[id]\route.ts:25:        CREATE TABLE IF NOT EXISTS 
+SharedDocument (
+src\app\api\documents\[id]\route.ts:32:            payload TEXT NOT NULL
+src\app\api\documents\[id]\route.ts:55:        const rows = await 
+prisma.$queryRawUnsafe<any[]>(
+src\app\api\documents\[id]\route.ts:56:            `SELECT payload FROM 
+SharedDocument WHERE id = '${escapedId}' LIMIT 1`
+src\app\api\documents\[id]\route.ts:63:        const document = 
+parsePayload(String(rows[0]?.payload ?? ""));
+src\app\api\documents\[id]\route.ts:66:                { success: false, 
+error: "Stored document payload is invalid" },
+src\app\api\market\templates\route.ts:89:        const rows = await 
+prisma.$queryRawUnsafe<any[]>(sql);
+src\app\api\market\templates\route.ts:100:            const ownedRows = await 
+prisma.$queryRawUnsafe<any[]>(ownedSql);
+
+
+
+src\app\api\activity\route.ts:71:                        transactionHash?: 
+string;
+src\app\api\activity\route.ts:76:                    const txHash = 
+String(payload.transactionHash ?? "");
+src\app\api\activity\route.ts:77:                    if 
+(!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+src\app\api\activity\route.ts:82:                        type: 
+"DOCUMENT_ANCHOR",
+
+
+
+docs\audit\01-01-document-anchor-commands.txt:12:transactionHash: 
+`offchain-anchor:${Date.now()}`,
+docs\audit\01-01-document-anchor-commands.txt:23:transactionHash: 
+`offchain-anchor:${Date.now()}`,
+docs\audit\01-01-document-anchor-commands.txt:145:`offchain-anchor:${Date.now()
+}`,
+docs\audit\01-01-document-anchor-commands.txt:147:`offchain-anchor:${Date.now()
+}`,
+docs\audit\01-01-document-anchor-commands.txt:148:docs\audit\01-01-document-anc
+hor-commands.txt:145:`offchain-anchor:${Date.now()
+docs\audit\01-01-document-anchor-commands.txt:150:docs\audit\01-01-document-anc
+hor-commands.txt:147:`offchain-anchor:${Date.now()
+docs\audit\01-01-document-anchor-commands.txt:153:hor-commands.txt:145:`offchai
+n-anchor:${Date.now()
+docs\audit\01-01-document-anchor-commands.txt:155:hor-commands.txt:147:`offchai
+n-anchor:${Date.now()
+
+
