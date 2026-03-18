@@ -31,10 +31,12 @@ interface PageProps {
     params: Promise<{ id: string }>;
 }
 
+const CHAIN_TX_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
+
 export default function DocumentViewPage(props: PageProps) {
     const params = use(props.params);
     const account = useEVMWallet((s) => s.account);
-    const { uploadDocument, checkVerified, canUploadDocument } = useDocuMateContract();
+    const { uploadDocument, checkVerified } = useDocuMateContract();
     const [document, setDocument] = useState<DocumentInstance | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [txStatus, setTxStatus] = useState<string | null>(null);
@@ -142,40 +144,42 @@ export default function DocumentViewPage(props: PageProps) {
             setTxStatus("Sender signature in progress...");
             const finalHash = await hashDocument(document.content);
 
-            const uploadAvailable = await canUploadDocument();
-            if (!uploadAvailable) {
-                updatedDoc = {
-                    ...document,
-                    senderSignature: signature,
-                    status: "PENDING_RECEIVER_SIGN",
-                    finalHash,
-                    transactionHash: `offchain-anchor:${Date.now()}`,
-                    updatedAt: new Date().toISOString(),
-                };
-
-                setTxStatus("On-chain anchoring unavailable for this contract. Document moved to receiver-sign with encrypted off-chain anchor.");
-                setTimeout(() => setTxStatus(null), 6000);
-
-                saveDocument(updatedDoc);
-                try {
-                    await syncDocumentToServer(updatedDoc);
-                } catch {
-                    // Keep local progress if network sync fails.
-                }
-                setDocument(updatedDoc);
-                return;
-            }
-
             try {
                 setTxStatus("Anchoring document hash on-chain (sender pays gas)...");
                 const receipt = await uploadDocument(finalHash);
+                const txHash = typeof receipt?.hash === "string"
+                    ? receipt.hash
+                    : (typeof receipt?.transactionHash === "string" ? receipt.transactionHash : "");
+
+                if (!CHAIN_TX_HASH_REGEX.test(txHash)) {
+                    const failedDoc: DocumentInstance = {
+                        ...document,
+                        anchorStatus: "FAILED",
+                        anchorError: "On-chain anchoring did not return a valid transaction hash.",
+                        updatedAt: new Date().toISOString(),
+                    };
+
+                    setTxStatus("On-chain anchoring failed to return a valid hash. Confirm wallet network and gas, then retry Sender Sign.");
+                    setTimeout(() => setTxStatus(null), 6000);
+
+                    saveDocument(failedDoc);
+                    try {
+                        await syncDocumentToServer(failedDoc);
+                    } catch {
+                        // Keep local progress if network sync fails.
+                    }
+                    setDocument(failedDoc);
+                    return;
+                }
 
                 updatedDoc = {
                     ...document,
                     senderSignature: signature,
                     status: "PENDING_RECEIVER_SIGN",
                     finalHash,
-                    transactionHash: receipt?.hash || receipt?.transactionHash,
+                    transactionHash: txHash,
+                    anchorStatus: "ANCHORED",
+                    anchorError: undefined,
                     updatedAt: new Date().toISOString(),
                 };
 
@@ -186,28 +190,32 @@ export default function DocumentViewPage(props: PageProps) {
                     ? error.message
                     : "Sender payment/anchoring failed. Please retry sender signature.";
 
-                // Graceful fallback when deployed contract does not expose uploadDocument.
-                if (message.includes("uploadDocument() is not available")) {
-                    updatedDoc = {
-                        ...document,
-                        senderSignature: signature,
-                        status: "PENDING_RECEIVER_SIGN",
-                        finalHash,
-                        transactionHash: `offchain-anchor:${Date.now()}`,
-                        updatedAt: new Date().toISOString(),
-                    };
+                const failedDoc: DocumentInstance = {
+                    ...document,
+                    anchorStatus: "FAILED",
+                    anchorError: message,
+                    updatedAt: new Date().toISOString(),
+                };
 
-                    setTxStatus("On-chain anchoring unavailable for this contract. Document moved to receiver-sign with encrypted off-chain anchor.");
-                    setTimeout(() => setTxStatus(null), 6000);
-                } else {
-                    setTxStatus(message);
-                    setTimeout(() => setTxStatus(null), 5000);
-                    return;
+                setTxStatus(`${message} Confirm wallet network, ensure gas, and retry Sender Sign.`);
+                setTimeout(() => setTxStatus(null), 6000);
+
+                saveDocument(failedDoc);
+                try {
+                    await syncDocumentToServer(failedDoc);
+                } catch {
+                    // Keep local progress if network sync fails.
                 }
+                setDocument(failedDoc);
+                return;
             }
         } else if (isReceiver && document.status === "PENDING_RECEIVER_SIGN") {
-            if (!document.transactionHash) {
-                setTxStatus("Sender must complete and pay on-chain anchoring before receiver finalizes.");
+            const hasValidAnchorProof = !!document.transactionHash
+                && CHAIN_TX_HASH_REGEX.test(document.transactionHash)
+                && document.anchorStatus !== "FAILED";
+
+            if (!hasValidAnchorProof) {
+                setTxStatus("Sender must complete valid on-chain anchoring before receiver finalizes. Ask sender to retry anchoring.");
                 setTimeout(() => setTxStatus(null), 4000);
                 return;
             }
@@ -438,6 +446,20 @@ export default function DocumentViewPage(props: PageProps) {
                                     <p className="break-all">
                                         <span className="text-gray-500">Anchor Tx:</span>{" "}
                                         <span className="font-mono text-amber-300">{document.transactionHash}</span>
+                                    </p>
+                                )}
+                                {document.anchorStatus && (
+                                    <p>
+                                        <span className="text-gray-500">Anchor Status:</span>{" "}
+                                        <span className={document.anchorStatus === "ANCHORED" ? "text-green-400" : document.anchorStatus === "FAILED" ? "text-red-300" : "text-amber-300"}>
+                                            {document.anchorStatus}
+                                        </span>
+                                    </p>
+                                )}
+                                {document.anchorError && (
+                                    <p className="break-words">
+                                        <span className="text-gray-500">Anchor Error:</span>{" "}
+                                        <span className="text-red-300">{document.anchorError}</span>
                                     </p>
                                 )}
                             </div>

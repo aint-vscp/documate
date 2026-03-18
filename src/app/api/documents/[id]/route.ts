@@ -1,18 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import type { DocumentInstance } from "@/types";
+import type { DocumentAnchorStatus, DocumentInstance } from "@/types";
 
 function normalizeAddress(address: string): string {
     return (address || "").trim().toLowerCase();
 }
 
 function parsePayload(payload: string): DocumentInstance | null {
+    const txHashRegex = /^0x[a-fA-F0-9]{64}$/;
+    const validAnchorStatuses = new Set(["PENDING", "ANCHORED", "FAILED"] as const);
+
     try {
         const parsed = JSON.parse(payload) as DocumentInstance;
+        const transactionHash = typeof parsed.transactionHash === "string" && parsed.transactionHash.trim().length > 0
+            ? parsed.transactionHash.trim()
+            : undefined;
+        const anchorError = typeof parsed.anchorError === "string" && parsed.anchorError.trim().length > 0
+            ? parsed.anchorError.trim()
+            : undefined;
+        const incomingStatus = typeof parsed.anchorStatus === "string" && parsed.anchorStatus.trim().length > 0
+            ? parsed.anchorStatus.trim()
+            : undefined;
+        const anchorStatus: DocumentAnchorStatus | undefined = incomingStatus && validAnchorStatuses.has(incomingStatus as "PENDING" | "ANCHORED" | "FAILED")
+            ? (incomingStatus as DocumentAnchorStatus)
+            : (transactionHash
+                ? (txHashRegex.test(transactionHash) ? "ANCHORED" : "FAILED")
+                : undefined);
+
         return {
             ...parsed,
             sender: normalizeAddress(parsed.sender),
             receiver: normalizeAddress(parsed.receiver),
+            transactionHash,
+            anchorStatus,
+            anchorError: anchorError || (transactionHash && !txHashRegex.test(transactionHash)
+                ? "transactionHash is not a valid on-chain anchor hash"
+                : undefined),
         };
     } catch {
         return null;

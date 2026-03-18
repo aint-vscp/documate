@@ -39,20 +39,32 @@ export async function GET(request: NextRequest) {
 
         await ensureSharedDocumentTable();
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const purchases = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT
-                'MARKET_PURCHASE' AS type,
-                p.txHash AS txHash,
-                p.createdAt AS createdAt,
-                p.templateId AS referenceId,
-                p.totalPrice AS amount
-            FROM Purchase p
-            WHERE LOWER(p.buyerAddress) = '${escapeSqlString(walletAddress)}'
-               OR LOWER(p.sellerAddress) = '${escapeSqlString(walletAddress)}'
-            ORDER BY p.createdAt DESC
-            LIMIT 50
-        `);
+        let purchases: Array<{
+            type: string;
+            txHash: string;
+            createdAt: string;
+            referenceId: string;
+            amount: string | null;
+        }> = [];
+
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            purchases = await prisma.$queryRawUnsafe<any[]>(`
+                SELECT
+                    'MARKET_PURCHASE' AS type,
+                    p.txHash AS txHash,
+                    p.createdAt AS createdAt,
+                    p.templateId AS referenceId,
+                    p.totalPrice AS amount
+                FROM Purchase p
+                WHERE LOWER(p.buyerAddress) = '${escapeSqlString(walletAddress)}'
+                   OR LOWER(p.sellerAddress) = '${escapeSqlString(walletAddress)}'
+                ORDER BY p.createdAt DESC
+                LIMIT 50
+            `);
+        } catch (error) {
+            console.warn("Activity API purchase query skipped:", error);
+        }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const docs = await prisma.$queryRawUnsafe<any[]>(`
@@ -69,12 +81,17 @@ export async function GET(request: NextRequest) {
                     const payload = JSON.parse(String(row.payload ?? "")) as {
                         id?: string;
                         transactionHash?: string;
+                        anchorStatus?: string;
                         finalizedAt?: string;
                         updatedAt?: string;
                     };
 
                     const txHash = String(payload.transactionHash ?? "");
                     if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+                        return null;
+                    }
+
+                    if (payload.anchorStatus === "FAILED") {
                         return null;
                     }
 

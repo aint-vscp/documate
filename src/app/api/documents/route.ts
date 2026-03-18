@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import type { DocumentInstance } from "@/types";
+import type { DocumentAnchorStatus, DocumentInstance } from "@/types";
 
 function normalizeAddress(address: string): string {
     return (address || "").trim().toLowerCase();
@@ -8,6 +8,50 @@ function normalizeAddress(address: string): string {
 
 function isValidEvmAddress(value: string): boolean {
     return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+const TX_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
+const VALID_ANCHOR_STATUSES = new Set(["PENDING", "ANCHORED", "FAILED"] as const);
+
+function normalizeOptionalString(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function validateAnchorFields(document: DocumentInstance): string | null {
+    const txHash = normalizeOptionalString(document.transactionHash);
+    const anchorStatus = normalizeOptionalString(document.anchorStatus);
+
+    if (txHash && !TX_HASH_REGEX.test(txHash)) {
+        return "transactionHash must match ^0x[a-fA-F0-9]{64}$";
+    }
+
+    if (anchorStatus && !VALID_ANCHOR_STATUSES.has(anchorStatus as "PENDING" | "ANCHORED" | "FAILED")) {
+        return "anchorStatus must be one of PENDING, ANCHORED, FAILED";
+    }
+
+    if (anchorStatus === "ANCHORED" && !txHash) {
+        return "anchorStatus ANCHORED requires a valid transactionHash";
+    }
+
+    return null;
+}
+
+function withNormalizedAnchorMetadata(document: DocumentInstance): DocumentInstance {
+    const txHash = normalizeOptionalString(document.transactionHash);
+    const anchorError = normalizeOptionalString(document.anchorError);
+    const incomingStatus = normalizeOptionalString(document.anchorStatus);
+    const anchorStatus: DocumentAnchorStatus | undefined = incomingStatus && VALID_ANCHOR_STATUSES.has(incomingStatus as "PENDING" | "ANCHORED" | "FAILED")
+        ? (incomingStatus as DocumentAnchorStatus)
+        : (txHash
+            ? (TX_HASH_REGEX.test(txHash) ? "ANCHORED" : "FAILED")
+            : undefined);
+
+    return {
+        ...document,
+        transactionHash: txHash,
+        anchorStatus,
+        anchorError: anchorError || (txHash && !TX_HASH_REGEX.test(txHash) ? "transactionHash is not a valid on-chain anchor hash" : undefined),
+    };
 }
 
 async function ensureTable(): Promise<void> {
@@ -37,11 +81,11 @@ async function ensureTable(): Promise<void> {
 function parsePayload(payload: string): DocumentInstance | null {
     try {
         const parsed = JSON.parse(payload) as DocumentInstance;
-        return {
+        return withNormalizedAnchorMetadata({
             ...parsed,
             sender: normalizeAddress(parsed.sender),
             receiver: normalizeAddress(parsed.receiver),
-        };
+        });
     } catch {
         return null;
     }
@@ -115,15 +159,25 @@ export async function POST(request: NextRequest) {
             updatedAt: new Date().toISOString(),
         };
 
+        const anchorValidationError = validateAnchorFields(normalizedDoc);
+        if (anchorValidationError) {
+            return NextResponse.json(
+                { success: false, error: anchorValidationError },
+                { status: 400 }
+            );
+        }
+
+        const normalizedWithAnchor = withNormalizedAnchorMetadata(normalizedDoc);
+
         await ensureTable();
 
-        const escapedId = normalizedDoc.id.replace(/'/g, "''");
+        const escapedId = normalizedWithAnchor.id.replace(/'/g, "''");
         const escapedSender = sender.replace(/'/g, "''");
         const escapedReceiver = receiver.replace(/'/g, "''");
-        const escapedStatus = normalizedDoc.status.replace(/'/g, "''");
-        const escapedCreatedAt = normalizedDoc.createdAt.replace(/'/g, "''");
-        const escapedUpdatedAt = normalizedDoc.updatedAt.replace(/'/g, "''");
-        const escapedPayload = JSON.stringify(normalizedDoc).replace(/'/g, "''");
+        const escapedStatus = normalizedWithAnchor.status.replace(/'/g, "''");
+        const escapedCreatedAt = normalizedWithAnchor.createdAt.replace(/'/g, "''");
+        const escapedUpdatedAt = normalizedWithAnchor.updatedAt.replace(/'/g, "''");
+        const escapedPayload = JSON.stringify(normalizedWithAnchor).replace(/'/g, "''");
 
         await prisma.$executeRawUnsafe(`
             INSERT INTO SharedDocument (id, sender, receiver, status, createdAt, updatedAt, payload)
@@ -136,7 +190,7 @@ export async function POST(request: NextRequest) {
                 payload = excluded.payload
         `);
 
-        return NextResponse.json({ success: true, data: normalizedDoc });
+        return NextResponse.json({ success: true, data: normalizedWithAnchor });
     } catch (error) {
         console.error("Shared documents POST error:", error);
         return NextResponse.json(

@@ -226,6 +226,8 @@ export type DocumentStatus =
   | "FINALIZED"
   | "REJECTED";
 
+export type DocumentAnchorStatus = "PENDING" | "ANCHORED" | "FAILED";
+
 /**
  * Placeholder field in a document template
  */
@@ -289,6 +291,8 @@ export interface DocumentInstance {
   finalHash?: string; // SHA-256 of final document
   blockNumber?: number; // Block where hash was stored
   transactionHash?: string;
+  anchorStatus?: DocumentAnchorStatus;
+  anchorError?: string;
 
   // Timestamps
   createdAt: string;
