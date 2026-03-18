@@ -5,13 +5,13 @@
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Every critical trust decision in contract work must be verifiable from immutable on-chain evidence.
-**Current focus:** Phase 1 - Baseline Proof Lock
+**Current focus:** Phase 1 - Audit Partially-Built Systems
 
 ## Current Position
 
 - Milestone: v1.0.0 Hackathon Submission
-- Phase: 1 of 5
-- Plan: 0 of 2 complete
+- Phase: 1 of 7
+- Plan: 0 of 3 complete
 - Status: Ready for planning and execution
 
 ## Progress
@@ -22,7 +22,7 @@ Progress: █░░░░░░░░░ 0%
 
 - Initialized GSD planning artifacts using existing brownfield codebase map.
 - Locked workflow mode to YOLO with auto-advance intent.
-- Scoped remaining milestone work around three incomplete subsystems and release finalization.
+- Rebuilt roadmap to seven phases covering audit, wiring, e2e validation, docs, video, cleanup, and release.
 
 ## Pending Todos
 

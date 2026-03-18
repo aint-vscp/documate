@@ -2,58 +2,77 @@
 
 ## Milestones
 
-- 🚧 **v1.0.0 Hackathon Submission** — Phases 1-5 (target: 2026-03-20)
+- 🚧 **v1.0.0 Hackathon Submission** — Phases 1-7 (target: 2026-03-20)
 
 ## Phases
 
-### Phase 1: Baseline Proof Lock
-**Goal**: Freeze and verify the current deployed foundation for judge review.
+### Phase 1: Audit Partially-Built Systems
+**Goal**: Audit three partially-built systems and prove what is truly on-chain versus DB-only or UI-only.
 **Depends on**: none
 Plans:
-- [ ] 01-01: Re-run testnet and security evidence suite with fresh timestamps
-- [ ] 01-02: Consolidate explorer and contract proof references for submission artifacts
+- [ ] 01-01: Confirm document hash is written on-chain, not only in database records
+- [ ] 01-02: Confirm Gold/Silver/Bronze TEE output is surfaced in user-facing UI
+- [ ] 01-03: Confirm reputation tags derive from on-chain history, not only DB state
 
-### Phase 2: Document Trust Path Completion
-**Goal**: Complete document hash anchoring path from creation to verifiable on-chain proof.
+### Phase 2: Wire Gaps Found in Audit
+**Goal**: Implement fixes discovered in Phase 1 across document anchoring, TEE UX, and reputation derivation.
 **Depends on**: Phase 1
 Plans:
-- [ ] 02-01: Wire document hash write path in API and contract integration points
-- [ ] 02-02: Surface document hash and verification status in dashboard UX
-- [ ] 02-03: Add tests and fallback handling for missing or invalid hash states
+- [ ] 02-01: Fix document hash on-chain write path and verification references
+- [ ] 02-02: Make TEE Gold/Silver/Bronze tier clearly visible in UI flows
+- [ ] 02-03: Connect reputation tags to contract history signals and evidence panels
 
-### Phase 3: TEE Validation UX Completion
-**Goal**: Make Gold/Silver/Bronze validation visible, understandable, and stable in user flows.
+### Phase 3: End-to-End Prototype Test on Testnet
+**Goal**: Validate the full user journey on Polkadot Hub testnet with evidence at each step.
 **Depends on**: Phase 2
 Plans:
-- [ ] 03-01: Finalize TEE classification mapping from validation pipeline
-- [ ] 03-02: Render classification badges and rationale in document views
-- [ ] 03-03: Validate error handling and confidence messaging for judges
+- [ ] 03-01: Run wallet connect through KILT verify and DocuWriter draft flow
+- [ ] 03-02: Validate on-chain hash mint plus TEE classification and UI rendering
+- [ ] 03-03: Execute marketplace purchase, verify 75/20/5 split, and confirm reputation tag generation
 
-### Phase 4: Reputation Tag Pipeline Completion
-**Goal**: Derive and present reputation tags from on-chain contract history and breach outcomes.
-**Depends on**: Phase 2
+### Phase 4: Submission Documentation
+**Goal**: Produce final judge-facing documentation with full product story and hard evidence.
+**Depends on**: Phase 3
 Plans:
-- [ ] 04-01: Finalize reputation tag derivation rules from contract events/history
-- [ ] 04-02: Connect breach/slash outcomes to user-facing reputation state
-- [ ] 04-03: Add profile-level evidence panels showing why tags were assigned
+- [ ] 04-01: Rewrite README with complete narrative and Track 2 differentiator
+- [ ] 04-02: Finalize precompile-integration.md, demo-script.md, and judge-qa.md
+- [ ] 04-03: Complete SUBMISSION.md with concrete evidence checklist
 
-### Phase 5: Submission Finalization and Release
-**Goal**: Finish docs/video polish, cleanup, final validation, and release tag v1.0.0.
-**Depends on**: Phases 3-4
+### Phase 5: Remotion Demo Video
+**Goal**: Produce a 90-second YC Demo Day style video covering all five systems and ending with live contract proof.
+**Depends on**: Phase 4
 Plans:
-- [ ] 05-01: Finalize submission docs and ensure every claim has concrete evidence
-- [ ] 05-02: Polish and verify Remotion demo render + script reproducibility
-- [ ] 05-03: Run final validation gate and prepare release tagging checklist
+- [ ] 05-01: Build 90-second storyline showing all five systems in sequence
+- [ ] 05-02: Add live demo ending frame held for 30 seconds with real contract address
+- [ ] 05-03: Render and verify reproducible video output from npm script
+
+### Phase 6: Codebase Cleanup
+**Goal**: Remove unused files and dead dependencies without breaking behavior.
+**Depends on**: Phase 5
+Plans:
+- [ ] 06-01: Remove dead files, stale scripts, and obsolete artifacts
+- [ ] 06-02: Prune unused dependencies and validate lockfile integrity
+- [ ] 06-03: Re-run build and tests to prove no regressions from cleanup
+
+### Phase 7: Final Validation and Release
+**Goal**: Run release gate checks and tag v1.0.0.
+**Depends on**: Phase 6
+Plans:
+- [ ] 07-01: Run npm audit, lint, build, hardhat test, and testnet config check
+- [ ] 07-02: Verify submission evidence and release readiness checklist
+- [ ] 07-03: Create and verify git tag v1.0.0
 
 ## Progress
 
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
-| 1     | ○      | 0/2   | 0%       |
+| 1     | ○      | 0/3   | 0%       |
 | 2     | ○      | 0/3   | 0%       |
 | 3     | ○      | 0/3   | 0%       |
 | 4     | ○      | 0/3   | 0%       |
 | 5     | ○      | 0/3   | 0%       |
+| 6     | ○      | 0/3   | 0%       |
+| 7     | ○      | 0/3   | 0%       |
 
 ---
 *Last updated: 2026-03-18 after initialization*
