@@ -6,15 +6,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { REVENUE_SPLIT } from "@/lib/contracts/marketplace";
+import { withRateLimit } from "@/lib/security/rateLimit";
 
 export async function POST(request: NextRequest) {
     try {
+        const limited = withRateLimit(request, "market-purchase", {
+            windowMs: 60_000,
+            maxRequests: 20,
+        });
+        if (limited) return limited;
+
         const body = await request.json();
         const { templateId, buyerAddress, txHash } = body;
+        const normalizedBuyerAddress = typeof buyerAddress === "string" ? buyerAddress.toLowerCase() : "";
 
         if (!templateId || !buyerAddress) {
             return NextResponse.json(
                 { success: false, error: "templateId and buyerAddress are required" },
+                { status: 400 }
+            );
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(normalizedBuyerAddress)) {
+            return NextResponse.json(
+                { success: false, error: "buyerAddress must be a valid EVM address" },
+                { status: 400 }
+            );
+        }
+
+        if (!txHash || !/^0x[a-fA-F0-9]{64}$/.test(String(txHash))) {
+            return NextResponse.json(
+                { success: false, error: "A valid purchase transaction hash is required" },
                 { status: 400 }
             );
         }
@@ -41,14 +63,21 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        if (template.creator.walletAddress.toLowerCase() === normalizedBuyerAddress) {
+            return NextResponse.json(
+                { success: false, error: "You cannot buy your own template NFT" },
+                { status: 400 }
+            );
+        }
+
         // Find or create buyer user record
         let buyer = await prisma.user.findUnique({
-            where: { walletAddress: buyerAddress },
+            where: { walletAddress: normalizedBuyerAddress },
         });
 
         if (!buyer) {
             buyer = await prisma.user.create({
-                data: { walletAddress: buyerAddress },
+                data: { walletAddress: normalizedBuyerAddress },
             });
         }
 
@@ -78,7 +107,7 @@ export async function POST(request: NextRequest) {
             prisma.purchase.create({
                 data: {
                     templateId,
-                    buyerAddress,
+                    buyerAddress: normalizedBuyerAddress,
                     sellerAddress: template.creator.walletAddress,
                     buyerId: buyer.id,
                     sellerId: template.creatorId,
@@ -87,7 +116,7 @@ export async function POST(request: NextRequest) {
                     creatorAmount,
                     companyAmount,
                     burnAmount: stakingAmount,
-                    txHash: txHash || null,
+                    txHash,
                     status: "COMPLETED",
                 },
             }),

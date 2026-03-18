@@ -260,6 +260,7 @@ export interface DocumentTemplate {
  */
 export interface DocumentSignature {
   signer: string; // SS58 address
+  signerDid?: string; // KILT DID if available
   signedAt: string; // ISO timestamp
   contentHash: string; // Hash of document at time of signing
   signature?: string; // Cryptographic signature (optional for MVP)

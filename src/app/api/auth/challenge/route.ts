@@ -5,15 +5,29 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateChallenge } from "@/lib/auth";
+import { withRateLimit } from "@/lib/security/rateLimit";
 
 export async function POST(request: NextRequest) {
     try {
+        const limited = withRateLimit(request, "auth-challenge", {
+            windowMs: 60_000,
+            maxRequests: 20,
+        });
+        if (limited) return limited;
+
         const body = await request.json();
         const { address, chainId } = body;
 
         if (!address) {
             return NextResponse.json(
                 { error: "Address is required" },
+                { status: 400 }
+            );
+        }
+
+        if (typeof chainId !== "undefined" && ![null, ""].includes(chainId) && !Number.isFinite(Number(chainId))) {
+            return NextResponse.json(
+                { error: "Invalid chainId format" },
                 { status: 400 }
             );
         }

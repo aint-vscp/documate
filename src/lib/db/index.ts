@@ -1,18 +1,13 @@
 /**
  * Prisma Database Client
  * Singleton pattern for Next.js (prevents connection pool exhaustion in dev)
- * Uses libSQL driver adapter for Prisma 7 client engine
+ * Uses Prisma native sqlite datasource config from prisma/schema.prisma
  */
 
 import { PrismaClient } from "@prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
 
 function makePrismaClient() {
-    const adapter = new PrismaLibSql({
-        url: process.env.DATABASE_URL ?? "file:./prisma/dev.db",
-    });
     return new PrismaClient({
-        adapter,
         log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
     });
 }

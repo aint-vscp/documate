@@ -14,9 +14,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DocuMate | Decentralized Trust Infrastructure",
+  title: "DocuMate Ember | Decentralized Trust Infrastructure",
   description:
-    "Trust infrastructure for contracts and reputation on Polkadot Hub EVM. Immutable economics, verifiable workflows, and a demo-ready governance stack.",
+    "DocuMate Ember: trust infrastructure for contracts and reputation on Polkadot Hub EVM. Immutable economics, verifiable workflows, and a demo-ready governance stack.",
   keywords: [
     "blockchain",
     "Polkadot",
@@ -36,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} font-sans antialiased bg-gray-950 text-white min-h-screen`}
+        className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} font-sans antialiased bg-gray-950 text-white min-h-screen tracking-[0.01em]`}
       >
         {children}
       </body>

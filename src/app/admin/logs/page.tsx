@@ -106,7 +106,7 @@ export default function AdminLogsPage() {
                         }}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                             filterAction === filter
-                                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+                                ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white"
                                 : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
                         }`}
                     >
@@ -118,7 +118,7 @@ export default function AdminLogsPage() {
             {/* Loading */}
             {isLoading && (
                 <div className="flex items-center justify-center py-12">
-                    <div className="w-8 h-8 border-2 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
                 </div>
             )}
 

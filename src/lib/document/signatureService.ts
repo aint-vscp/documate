@@ -4,6 +4,165 @@
  */
 
 import type { DocumentInstance, DocumentSignature, DocumentOnChainProof } from "@/types";
+import { loadUserProfile } from "@/lib/polkadot/kilt";
+
+const SIGNATURE_BLOB_PREFIX = "encsig:v1";
+
+interface EncryptedReusableSignatureRecord {
+    did?: string;
+    signerAddress: string;
+    iv: string;
+    cipherText: string;
+    updatedAt: string;
+}
+
+function toBase64(bytes: Uint8Array): string {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function fromBase64(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
+async function deriveSignatureKey(signerAddress: string, did?: string): Promise<CryptoKey> {
+    const material = `${signerAddress.toLowerCase()}::${did ?? "no-did"}`;
+    const materialBytes = new TextEncoder().encode(material);
+    const digest = await crypto.subtle.digest("SHA-256", materialBytes);
+    return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function encryptSignatureData(signatureDataUrl: string, signerAddress: string, did?: string): Promise<string> {
+    const key = await deriveSignatureKey(signerAddress, did);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const payload = new TextEncoder().encode(signatureDataUrl);
+    const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, payload);
+    const encBytes = new Uint8Array(encrypted);
+
+    return `${SIGNATURE_BLOB_PREFIX}:${toBase64(iv)}:${toBase64(encBytes)}`;
+}
+
+async function decryptSignatureData(blob: string, signerAddress: string, did?: string): Promise<string | null> {
+    if (!blob.startsWith(`${SIGNATURE_BLOB_PREFIX}:`)) {
+        return null;
+    }
+
+    const parts = blob.split(":");
+    if (parts.length !== 4) return null;
+
+    try {
+        const iv = fromBase64(parts[2]);
+        const cipherBytes = fromBase64(parts[3]);
+        const key = await deriveSignatureKey(signerAddress, did);
+        const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer;
+        const cipherBuffer = cipherBytes.buffer.slice(
+            cipherBytes.byteOffset,
+            cipherBytes.byteOffset + cipherBytes.byteLength
+        ) as ArrayBuffer;
+        const decrypted = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: ivBuffer },
+            key,
+            cipherBuffer
+        );
+        return new TextDecoder().decode(decrypted);
+    } catch {
+        return null;
+    }
+}
+
+function normalizeAddress(address: string): string {
+    return (address || "").trim().toLowerCase();
+}
+
+function reusableSignatureStorageKey(signerAddress: string): string {
+    return `documate-reusable-signature:${normalizeAddress(signerAddress)}`;
+}
+
+function reusableDidSignatureStorageKey(did: string): string {
+    return `documate-reusable-signature-did:${did}`;
+}
+
+export async function saveReusableEncryptedSignature(
+    signerAddress: string,
+    signatureDataUrl: string,
+    did?: string
+): Promise<void> {
+    if (typeof window === "undefined") return;
+
+    const normalizedAddress = normalizeAddress(signerAddress);
+    const resolvedDid = did || loadUserProfile()?.did;
+    const key = reusableSignatureStorageKey(normalizedAddress);
+    const encryptedBlob = await encryptSignatureData(signatureDataUrl, normalizedAddress, resolvedDid);
+    const [, , iv, cipherText] = encryptedBlob.split(":");
+
+    const payload: EncryptedReusableSignatureRecord = {
+        did: resolvedDid,
+        signerAddress: normalizedAddress,
+        iv,
+        cipherText,
+        updatedAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(key, JSON.stringify(payload));
+
+    if (resolvedDid) {
+        localStorage.setItem(reusableDidSignatureStorageKey(resolvedDid), JSON.stringify(payload));
+    }
+}
+
+export async function loadReusableEncryptedSignature(
+    signerAddress: string,
+    did?: string
+): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+
+    const normalizedAddress = normalizeAddress(signerAddress);
+    const resolvedDid = did || loadUserProfile()?.did;
+
+    const candidateRecords: EncryptedReusableSignatureRecord[] = [];
+
+    if (resolvedDid) {
+        const didRaw = localStorage.getItem(reusableDidSignatureStorageKey(resolvedDid));
+        if (didRaw) {
+            try {
+                candidateRecords.push(JSON.parse(didRaw) as EncryptedReusableSignatureRecord);
+            } catch {
+                // Ignore malformed DID-linked record.
+            }
+        }
+    }
+
+    const walletRaw = localStorage.getItem(reusableSignatureStorageKey(normalizedAddress));
+    if (walletRaw) {
+        try {
+            candidateRecords.push(JSON.parse(walletRaw) as EncryptedReusableSignatureRecord);
+        } catch {
+            // Ignore malformed wallet-linked record.
+        }
+    }
+
+    for (const record of candidateRecords) {
+        const blob = `${SIGNATURE_BLOB_PREFIX}:${record.iv}:${record.cipherText}`;
+        const didCandidates = [resolvedDid, record.did, undefined];
+
+        for (const didCandidate of didCandidates) {
+            const decoded = await decryptSignatureData(blob, normalizedAddress, didCandidate);
+            if (decoded) {
+                return decoded;
+            }
+        }
+    }
+
+    return null;
+}
 
 // ============================================================
 // Document Hashing
@@ -41,16 +200,26 @@ export async function verifyDocumentHash(
  */
 export async function createSignature(
     signerAddress: string,
-    documentContent: string
+    documentContent: string,
+    drawnSignatureDataUrl?: string
 ): Promise<DocumentSignature> {
     const contentHash = await hashDocument(documentContent);
+    const profile = loadUserProfile();
+    const signerDid = profile?.did;
+
+    let signatureValue: string | undefined;
+    if (drawnSignatureDataUrl) {
+        await saveReusableEncryptedSignature(signerAddress, drawnSignatureDataUrl, signerDid);
+        // Store renderable image data in the document signature block.
+        signatureValue = drawnSignatureDataUrl;
+    }
 
     return {
         signer: signerAddress,
+        signerDid,
         signedAt: new Date().toISOString(),
         contentHash,
-        // In production, this would include an actual cryptographic signature
-        // from the wallet. For MVP, we use the hash as proof of agreement.
+        signature: signatureValue,
     };
 }
 
@@ -63,6 +232,32 @@ export async function verifySignature(
 ): Promise<boolean> {
     const currentHash = await hashDocument(documentContent);
     return signature.contentHash === currentHash;
+}
+
+/**
+ * Resolve a signature image for rendering in document views.
+ * Supports both plain data URLs and legacy encrypted signature blobs.
+ */
+export async function resolveSignatureImage(
+    signature: DocumentSignature | undefined
+): Promise<string | null> {
+    if (!signature?.signature) return null;
+
+    if (signature.signature.startsWith("data:image/")) {
+        return signature.signature;
+    }
+
+    if (signature.signature.startsWith(`${SIGNATURE_BLOB_PREFIX}:`)) {
+        const didCandidates = [signature.signerDid, loadUserProfile()?.did, undefined];
+        for (const didCandidate of didCandidates) {
+            const decoded = await decryptSignatureData(signature.signature, signature.signer, didCandidate);
+            if (decoded && decoded.startsWith("data:image/")) {
+                return decoded;
+            }
+        }
+    }
+
+    return null;
 }
 
 // ============================================================

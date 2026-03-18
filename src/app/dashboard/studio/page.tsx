@@ -1,19 +1,23 @@
 /**
- * Template Studio / Minting Page
- * Create and mint templates as NFTs on Asset Hub
- * 
- * PRD Reference:
- * - Creators define "Master Templates" with mandatory variable fields
- * - Minting: Creators pay a gas/storage fee ($5-$10) to tokenize the template
+ * Template Studio - Google-Docs-style rich editor + mint flow
  */
 "use client";
 
-import { useState, useCallback, useRef, type ChangeEvent } from "react";
+import {
+    useState,
+    useCallback,
+    useRef,
+    useEffect,
+    type ChangeEvent,
+    type MouseEvent,
+    type DragEvent,
+} from "react";
 import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
 import { WalletConnect } from "@/components/chain";
 import { RevenueSplit } from "@/components/market";
 import Link from "next/link";
-import Image from "next/image";
+import { ethers } from "ethers";
+import { CONTRACT_ADDRESS, DOCUMATE_ABI } from "@/config/DocuMateABI";
 
 type MintingStep = "create" | "preview" | "pricing" | "mint" | "success";
 type TemplateCategory = "LEGAL" | "CREATIVE" | "ENGINEERING";
@@ -35,154 +39,291 @@ interface TemplateForm {
     requestVerification: boolean;
 }
 
-const CATEGORY_OPTIONS: {
-    id: TemplateCategory;
-    label: string;
-    code: string;
-    color: string
-}[] = [
-        { id: "LEGAL", label: "Legal", code: "LGL", color: "from-blue-500 to-indigo-600" },
-        { id: "CREATIVE", label: "Creative", code: "CR8", color: "from-pink-500 to-purple-600" },
-        { id: "ENGINEERING", label: "Engineering", code: "ENG", color: "from-green-500 to-emerald-600" },
-    ];
+interface DragState {
+    active: boolean;
+    imgId: string;
+    startX: number;
+    startY: number;
+    origLeft: number;
+    origTop: number;
+}
 
-const MINTING_FEE = 5; // $5 DOCU gas/storage fee
-const VERIFICATION_FEE = 50; // $50 for "Blue Check" verification
+const CATEGORY_OPTIONS: { id: TemplateCategory; label: string; code: string; color: string }[] = [
+    { id: "LEGAL",       label: "Legal",       code: "LGL", color: "from-blue-500 to-indigo-600" },
+    { id: "CREATIVE",    label: "Creative",    code: "CR8", color: "from-orange-500 to-amber-500" },
+    { id: "ENGINEERING", label: "Engineering", code: "ENG", color: "from-green-500 to-emerald-600" },
+];
+
+const MINTING_FEE     = 5;
+const VERIFICATION_FEE = 50;
+
+function execCmd(cmd: string, value?: string) {
+    document.execCommand(cmd, false, value ?? undefined);
+}
 
 export default function TemplateStudioPage() {
     const isConnected = useIsEVMConnected();
-    const account = useEVMAccount();
+    const account     = useEVMAccount();
 
-    const [step, setStep] = useState<MintingStep>("create");
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [mintError, setMintError] = useState<string | null>(null);
+    const [step, setStep]                         = useState<MintingStep>("create");
+    const [isProcessing, setIsProcessing]         = useState(false);
+    const [mintError, setMintError]               = useState<string | null>(null);
     const [mintedTemplateId, setMintedTemplateId] = useState<string | null>(null);
-    const imageInputRef = useRef<HTMLInputElement | null>(null);
+    const [mintPaymentTx, setMintPaymentTx]       = useState<string | null>(null);
 
     const [form, setForm] = useState<TemplateForm>({
-        title: "",
-        description: "",
-        category: "LEGAL",
-        content: "",
-        placeholders: [],
-        price: 50,
-        requestVerification: false,
+        title: "", description: "", category: "LEGAL",
+        content: "", placeholders: [], price: 50, requestVerification: false,
     });
 
-    // Placeholder management
     const [newPlaceholder, setNewPlaceholder] = useState<Placeholder>({
-        key: "",
-        label: "",
-        type: "text",
-        required: true,
+        key: "", label: "", type: "text", required: true,
     });
 
-    const addPlaceholder = useCallback(() => {
-        if (!newPlaceholder.key || !newPlaceholder.label) return;
+    const editorRef     = useRef<HTMLDivElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const dragRef       = useRef<DragState | null>(null);
+    const placeholderDetectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-        setForm(prev => ({
-            ...prev,
-            placeholders: [...prev.placeholders, { ...newPlaceholder }],
-        }));
-        setNewPlaceholder({ key: "", label: "", type: "text", required: true });
-    }, [newPlaceholder]);
+    const extractPlaceholders = useCallback((html: string): Placeholder[] => {
+        const regex = /\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g;
+        const detected = new Map<string, Placeholder>();
 
-    const removePlaceholder = useCallback((key: string) => {
-        setForm(prev => ({
-            ...prev,
-            placeholders: prev.placeholders.filter(p => p.key !== key),
-        }));
+        for (const match of html.matchAll(regex)) {
+            const rawKey = match[1]?.trim();
+            if (!rawKey) continue;
+            const key = rawKey.toLowerCase();
+
+            if (!detected.has(key)) {
+                detected.set(key, {
+                    key,
+                    label: key.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                    type: "text",
+                    required: true,
+                });
+            }
+        }
+
+        return [...detected.values()];
     }, []);
 
-    const appendToContent = useCallback((text: string) => {
-        setForm(prev => ({
-            ...prev,
-            content: prev.content.trimEnd() ? `${prev.content.trimEnd()}\n\n${text}` : text,
-        }));
+    const mergeDetectedPlaceholders = useCallback((html: string) => {
+        const detected = extractPlaceholders(html);
+        if (detected.length === 0) return;
+
+        setForm(prev => {
+            const existingKeys = new Set(prev.placeholders.map(p => p.key));
+            const newOnes = detected.filter(p => !existingKeys.has(p.key));
+            if (newOnes.length === 0) return prev;
+            return { ...prev, placeholders: [...prev.placeholders, ...newOnes] };
+        });
+    }, [extractPlaceholders]);
+
+    const syncContent = useCallback(() => {
+        if (!editorRef.current) return;
+
+        const html = editorRef.current.innerHTML;
+
+        // Keep content state in sync immediately.
+        setForm(prev => (prev.content === html ? prev : { ...prev, content: html }));
+
+        // Debounce placeholder detection until user pauses typing.
+        if (placeholderDetectTimeoutRef.current) {
+            clearTimeout(placeholderDetectTimeoutRef.current);
+        }
+        placeholderDetectTimeoutRef.current = setTimeout(() => {
+            mergeDetectedPlaceholders(html);
+            placeholderDetectTimeoutRef.current = null;
+        }, 500);
+    }, [mergeDetectedPlaceholders]);
+
+    useEffect(() => {
+        if (step === "create" && editorRef.current) {
+            if (editorRef.current.innerHTML !== form.content) {
+                editorRef.current.innerHTML = form.content || "";
+            }
+
+            // Keep variable fields synced even when loading pre-existing content.
+            mergeDetectedPlaceholders(editorRef.current.innerHTML);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step, form.content, mergeDetectedPlaceholders]);
+
+    useEffect(() => {
+        return () => {
+            if (placeholderDetectTimeoutRef.current) {
+                clearTimeout(placeholderDetectTimeoutRef.current);
+            }
+        };
     }, []);
 
-    const handleInsertHeading = useCallback(() => {
-        appendToContent("## Section Title\nAdd your clause details here.");
-    }, [appendToContent]);
+    const tbBold      = () => { execCmd("bold");                     editorRef.current?.focus(); };
+    const tbItalic    = () => { execCmd("italic");                   editorRef.current?.focus(); };
+    const tbUnder     = () => { execCmd("underline");                editorRef.current?.focus(); };
+    const tbH1        = () => { execCmd("formatBlock", "<h1>");      editorRef.current?.focus(); };
+    const tbH2        = () => { execCmd("formatBlock", "<h2>");      editorRef.current?.focus(); };
+    const tbPara      = () => { execCmd("formatBlock", "<p>");       editorRef.current?.focus(); };
+    const tbUL        = () => { execCmd("insertUnorderedList");      editorRef.current?.focus(); };
+    const tbOL        = () => { execCmd("insertOrderedList");        editorRef.current?.focus(); };
+    const tbAlignL    = () => { execCmd("justifyLeft");              editorRef.current?.focus(); };
+    const tbAlignC    = () => { execCmd("justifyCenter");            editorRef.current?.focus(); };
+    const tbHR        = () => {
+        execCmd("insertHTML", "<hr style='border-color:#333;margin:12px 0;' /><p><br></p>");
+        editorRef.current?.focus();
+    };
 
-    const handleInsertClause = useCallback(() => {
-        appendToContent("### Clause\n1. Add your first obligation.\n2. Add your second obligation.");
-    }, [appendToContent]);
-
-    const handleInsertSignatureBlock = useCallback(() => {
-        appendToContent("---\n\nSigned by {{party_a_name}}\nDate: {{effective_date}}\n\nSigned by {{party_b_name}}\nDate: {{effective_date}}");
-    }, [appendToContent]);
+    const insertPlaceholderTag = useCallback((key: string) => {
+        editorRef.current?.focus();
+        execCmd("insertHTML", `<span style="background:#1e3a5f;color:#67e8f9;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.85em;">{{${key}}}</span>&nbsp;`);
+        syncContent();
+    }, [syncContent]);
 
     const handleImageUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
         if (!file.type.startsWith("image/")) {
-            setMintError("Only image files can be inserted into templates.");
-            event.target.value = "";
+            setMintError("Only image files can be inserted.");
+            if (event.target) event.target.value = "";
             return;
         }
-
         if (file.size > 5 * 1024 * 1024) {
-            setMintError("Image too large. Please use an image smaller than 5MB.");
-            event.target.value = "";
+            setMintError("Image too large (max 5 MB).");
+            if (event.target) event.target.value = "";
             return;
         }
 
         const reader = new FileReader();
         reader.onload = () => {
-            const result = typeof reader.result === "string" ? reader.result : "";
-            if (!result) {
-                setMintError("Failed to load image. Please try again.");
-                return;
-            }
+            const src = typeof reader.result === "string" ? reader.result : "";
+            if (!src) { setMintError("Failed to read image."); return; }
 
-            appendToContent(`![${file.name}](${result})`);
+            const id = `studio-img-${Date.now()}`;
+            const html = `<img id="${id}" src="${src}" alt="${file.name}" data-draggable="true" style="max-width:320px;max-height:240px;cursor:grab;display:inline-block;margin:4px;border-radius:6px;border:1px solid #333;" /><p><br></p>`;
+
+            editorRef.current?.focus();
+            execCmd("insertHTML", html);
+            syncContent();
             setMintError(null);
         };
-
-        reader.onerror = () => {
-            setMintError("Failed to read the selected image.");
-        };
-
+        reader.onerror = () => setMintError("Failed to read the selected image.");
         reader.readAsDataURL(file);
-        event.target.value = "";
-    }, [appendToContent]);
+        if (event.target) event.target.value = "";
+    }, [syncContent]);
 
-    const previewLines = form.content.split("\n");
+    const handleEditorMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== "IMG" || !(target as HTMLImageElement).dataset.draggable) return;
 
-    // Extract placeholders from content
+        e.preventDefault();
+        const img  = target as HTMLImageElement;
+        const rect = img.getBoundingClientRect();
+
+        img.style.position = "absolute";
+        img.style.left     = `${rect.left + window.scrollX}px`;
+        img.style.top      = `${rect.top  + window.scrollY}px`;
+        img.style.cursor   = "grabbing";
+        img.style.zIndex   = "100";
+
+        dragRef.current = {
+            active: true,
+            imgId:  img.id,
+            startX: e.clientX,
+            startY: e.clientY,
+            origLeft: parseFloat(img.style.left),
+            origTop:  parseFloat(img.style.top),
+        };
+    }, []);
+
+    useEffect(() => {
+        const onMouseMove = (e: globalThis.MouseEvent) => {
+            if (!dragRef.current?.active) return;
+            const ds  = dragRef.current;
+            const img = document.getElementById(ds.imgId) as HTMLImageElement | null;
+            if (!img) return;
+            img.style.left = `${ds.origLeft + (e.clientX - ds.startX)}px`;
+            img.style.top  = `${ds.origTop  + (e.clientY - ds.startY)}px`;
+        };
+        const onMouseUp = () => {
+            if (!dragRef.current?.active) return;
+            const img = document.getElementById(dragRef.current.imgId) as HTMLImageElement | null;
+            if (img) img.style.cursor = "grab";
+            dragRef.current = null;
+            syncContent();
+        };
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup",   onMouseUp);
+        return () => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup",   onMouseUp);
+        };
+    }, [syncContent]);
+
+    const handleEditorDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+        const file = e.dataTransfer.files?.[0];
+        if (!file?.type.startsWith("image/")) return;
+        e.preventDefault();
+        const fakeEvt = { target: { files: [file], value: "" } } as unknown as ChangeEvent<HTMLInputElement>;
+        handleImageUpload(fakeEvt);
+    }, [handleImageUpload]);
+
     const detectPlaceholders = useCallback(() => {
-        const regex = /\{\{(\w+)\}\}/g;
-        const matches = [...form.content.matchAll(regex)];
-        const detected: Placeholder[] = matches.map(match => ({
-            key: match[1],
-            label: match[1].replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-            type: "text",
-            required: true,
-        }));
+        const html = editorRef.current?.innerHTML ?? form.content;
+        mergeDetectedPlaceholders(html);
+    }, [form.content, mergeDetectedPlaceholders]);
 
-        // Merge with existing, keeping user configurations
-        const existingKeys = new Set(form.placeholders.map(p => p.key));
-        const newPlaceholders = detected.filter(p => !existingKeys.has(p.key));
+    const addPlaceholder = useCallback(() => {
+        if (!newPlaceholder.key || !newPlaceholder.label) return;
+        setForm(prev => ({ ...prev, placeholders: [...prev.placeholders, { ...newPlaceholder }] }));
+        setNewPlaceholder({ key: "", label: "", type: "text", required: true });
+    }, [newPlaceholder]);
 
-        setForm(prev => ({
-            ...prev,
-            placeholders: [...prev.placeholders, ...newPlaceholders],
-        }));
-    }, [form.content, form.placeholders]);
+    const removePlaceholder = useCallback((key: string) => {
+        setForm(prev => ({ ...prev, placeholders: prev.placeholders.filter(p => p.key !== key) }));
+    }, []);
 
-    // Calculate total costs
     const totalCost = MINTING_FEE + (form.requestVerification ? VERIFICATION_FEE : 0);
 
-    // Handle minting - calls the mint API
     const handleMint = async () => {
         if (!account) return;
         setIsProcessing(true);
         setMintError(null);
+        setMintPaymentTx(null);
 
         try {
-            // Call the mint API to create the template in the database
+            if (!window.ethereum) {
+                throw new Error("MetaMask provider unavailable.");
+            }
+
+            // Pay minting fee on-chain before template creation.
+            const provider = new ethers.BrowserProvider(window.ethereum as never);
+            const signer = await provider.getSigner();
+            const readContract = new ethers.Contract(CONTRACT_ADDRESS, DOCUMATE_ABI, provider);
+
+            let treasuryAddress: string;
+            try {
+                treasuryAddress = await readContract.treasury();
+            } catch {
+                throw new Error("Unable to resolve treasury wallet from contract.");
+            }
+
+            if (!/^0x[a-fA-F0-9]{40}$/.test(treasuryAddress)) {
+                throw new Error("Contract treasury address is invalid.");
+            }
+
+            const feeInPas = totalCost / 1000;
+            const paymentTx = await signer.sendTransaction({
+                to: treasuryAddress,
+                value: ethers.parseEther(feeInPas.toFixed(6)),
+            });
+            const paymentReceipt = await paymentTx.wait();
+            const paymentTxHash = paymentReceipt?.hash || paymentTx.hash;
+            if (!paymentTxHash) {
+                throw new Error("Mint fee payment did not return a transaction hash.");
+            }
+
+            setMintPaymentTx(paymentTxHash);
+
             const mintResponse = await fetch("/api/market/mint", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -194,19 +335,16 @@ export default function TemplateStudioPage() {
                     price: form.price,
                     placeholders: form.placeholders,
                     creatorAddress: account,
+                    paymentTxHash,
+                    mintFeeDocu: totalCost,
                 }),
             });
-
             const mintData = await mintResponse.json();
-
-            if (!mintData.success) {
-                throw new Error(mintData.error || "Minting failed");
-            }
+            if (!mintData.success) throw new Error(mintData.error || "Minting failed");
 
             const templateId = mintData.data.templateId;
             setMintedTemplateId(templateId);
 
-            // If verification requested, submit to verification queue
             if (form.requestVerification) {
                 await fetch("/api/verification/submit", {
                     method: "POST",
@@ -215,598 +353,424 @@ export default function TemplateStudioPage() {
                         templateId,
                         creatorAddress: account,
                         feePaid: VERIFICATION_FEE,
+                        paymentTx: paymentTxHash,
                     }),
                 });
             }
 
             setStep("success");
         } catch (error) {
-            const message = error instanceof Error ? error.message : "Minting failed. Please try again.";
-            setMintError(message);
-            console.error("Minting failed:", error);
+            setMintError(error instanceof Error ? error.message : "Minting failed.");
         } finally {
             setIsProcessing(false);
         }
     };
 
-    // Not connected view
     if (!isConnected) {
         return (
-            <div className="flex items-center justify-center p-6">
-                <div className="surface-card text-center max-w-md p-8">
-                    <div className="w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                        <svg className="w-10 h-10 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    </div>
+            <div className="w-full min-h-[calc(100vh-10rem)] flex items-center justify-center p-6">
+                <div className="surface-card text-center w-full max-w-2xl p-8">
                     <h1 className="text-2xl font-bold text-white mb-2">Template Studio</h1>
-                    <p className="text-gray-400 mb-6">
-                        Connect your wallet to create and mint templates as NFTs.
-                    </p>
+                    <p className="text-white/40 mb-6">Connect your wallet to create and mint templates.</p>
                     <WalletConnect />
                 </div>
             </div>
         );
     }
 
+    const TB = ({ label, onClick }: { label: string; onClick: () => void }) => (
+        <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+            className="px-2.5 py-1 text-xs font-medium text-white/60 hover:text-white hover:bg-white/[0.07] rounded transition-colors border border-transparent hover:border-white/[0.08]"
+        >
+            {label}
+        </button>
+    );
+
     return (
-        <div className="p-6">
-            <div className="max-w-4xl mx-auto">
-                {/* Header */}
-                <div className="surface-card p-6 mb-8">
-                    <Link href="/dashboard/market" className="text-gray-400 hover:text-white text-sm flex items-center gap-2 mb-4">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="max-w-5xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <Link href="/dashboard/market" className="text-xs text-white/35 hover:text-white flex items-center gap-1.5 mb-2 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
                         Back to Market
                     </Link>
-                    <h1 className="text-3xl font-bold text-white">Template Studio</h1>
-                    <p className="text-gray-400 mt-1">Create and mint your templates as NFTs</p>
+                    <h1 className="text-2xl font-bold text-white">Template Studio</h1>
+                    <p className="text-white/35 text-sm mt-0.5">Create and mint your templates as NFTs</p>
                 </div>
-
-                {/* Progress Steps */}
-                <div className="flex items-center justify-between mb-8">
-                    {(["create", "preview", "pricing", "mint", "success"] as MintingStep[]).map((s, i) => {
+                <div className="hidden md:flex items-center gap-1">
+                    {(["create","preview","pricing","mint","success"] as MintingStep[]).map((s, i) => {
+                        const order = ["create","preview","pricing","mint","success"];
                         const isActive = step === s;
-                        const isPast = ["create", "preview", "pricing", "mint", "success"].indexOf(step) > i;
-
+                        const isPast   = order.indexOf(step) > i;
                         return (
                             <div key={s} className="flex items-center">
-                                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold transition-all ${isActive
-                                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
-                                        : isPast
-                                            ? "bg-emerald-500/20 text-emerald-400"
-                                            : "bg-gray-800 text-gray-500"
-                                    }`}>
-                                    {isPast ? (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                    ) : (
-                                        i + 1
-                                    )}
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                                    isActive ? "bg-cyan-400 text-black" : isPast ? "bg-white/10 text-white/40" : "bg-white/[0.04] text-white/20"
+                                }`}>
+                                    {isPast ? "?" : i + 1}
                                 </div>
-                                <span className={`ml-2 text-sm ${isActive ? "text-white" : "text-gray-500"}`}>
-                                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                                </span>
-                                {i < 4 && (
-                                    <div className={`w-12 h-0.5 mx-3 ${isPast ? "bg-emerald-500" : "bg-gray-700"}`} />
-                                )}
+                                {i < 4 && <div className={`w-6 h-px mx-1 ${isPast ? "bg-cyan-400/50" : "bg-white/[0.07]"}`} />}
                             </div>
                         );
                     })}
                 </div>
+            </div>
 
-                {/* Step 1: Create */}
-                {step === "create" && (
-                    <div className="space-y-6">
-                        {/* Basic Info */}
-                        <div className="surface-card p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4">Basic Information</h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Template Title</label>
-                                    <input
-                                        type="text"
-                                        value={form.title}
-                                        onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
-                                        placeholder="e.g., Professional NDA Template"
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Description</label>
-                                    <textarea
-                                        value={form.description}
-                                        onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
-                                        placeholder="Describe what this template is for..."
-                                        rows={3}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none resize-none"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-2">Category</label>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {CATEGORY_OPTIONS.map((cat) => (
-                                            <button
-                                                key={cat.id}
-                                                onClick={() => setForm(prev => ({ ...prev, category: cat.id }))}
-                                                className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${form.category === cat.id
-                                                        ? `bg-gradient-to-br ${cat.color} border-transparent text-white`
-                                                        : "bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-gray-600"
-                                                    }`}
-                                            >
-                                                <span className="text-xs font-semibold px-2 py-1 rounded-md bg-black/20 border border-white/20">{cat.code}</span>
-                                                <span className="font-medium">{cat.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="surface-card p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-lg font-semibold text-white">Template Content</h2>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={detectPlaceholders}
-                                        className="text-sm text-pink-400 hover:text-pink-300"
-                                    >
-                                        Detect Placeholders
-                                    </button>
-                                    <button
-                                        onClick={() => imageInputRef.current?.click()}
-                                        className="text-sm px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700"
-                                    >
-                                        Add Image
-                                    </button>
-                                </div>
-                            </div>
-
-                            <p className="text-gray-400 text-sm mb-4">
-                                Use {`{{placeholder_name}}`} syntax for variable fields. Example: {`{{client_name}}`}, {`{{effective_date}}`}
-                            </p>
-
-                            <div className="flex flex-wrap gap-2 mb-4">
-                                <button
-                                    onClick={handleInsertHeading}
-                                    className="text-xs px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700"
-                                >
-                                    Insert Heading
-                                </button>
-                                <button
-                                    onClick={handleInsertClause}
-                                    className="text-xs px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700"
-                                >
-                                    Insert Clause List
-                                </button>
-                                <button
-                                    onClick={handleInsertSignatureBlock}
-                                    className="text-xs px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700"
-                                >
-                                    Insert Signature Block
-                                </button>
-                            </div>
-
+            {step === "create" && (
+                <div className="space-y-5">
+                    <div className="surface-card p-5">
+                        <h2 className="text-sm font-semibold text-white/60 mono-label mb-4">Basic Information</h2>
+                        <div className="space-y-3">
                             <input
-                                ref={imageInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageUpload}
-                                className="hidden"
+                                type="text"
+                                value={form.title}
+                                onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
+                                placeholder="Template title, e.g. Professional NDA"
+                                className="w-full bg-black border border-white/[0.08] rounded-lg px-4 py-2.5 text-white placeholder-white/20 focus:border-cyan-400/40 focus:outline-none text-sm"
                             />
-
                             <textarea
-                                value={form.content}
-                                onChange={(e) => setForm(prev => ({ ...prev, content: e.target.value }))}
-                                placeholder={`NON-DISCLOSURE AGREEMENT\n\nThis Agreement is entered into as of {{effective_date}} between:\n\nParty A: {{party_a_name}}\nParty B: {{party_b_name}}\n\n...`}
-                                rows={15}
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:border-pink-500 focus:outline-none resize-y leading-7"
+                                value={form.description}
+                                onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
+                                placeholder="Describe what this template is for..."
+                                rows={2}
+                                className="w-full bg-black border border-white/[0.08] rounded-lg px-4 py-2.5 text-white placeholder-white/20 focus:border-cyan-400/40 focus:outline-none text-sm resize-none"
                             />
-                            <p className="mt-3 text-xs text-gray-500">
-                                Tip: uploaded images are embedded directly into your template. Keep visuals lightweight for faster loading.
-                            </p>
-                        </div>
-
-                        {/* Placeholders */}
-                        <div className="surface-card p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4">Placeholders</h2>
-
-                            {/* Detected/Added Placeholders */}
-                            {form.placeholders.length > 0 && (
-                                <div className="mb-4 space-y-2">
-                                    {form.placeholders.map((p) => (
-                                        <div
-                                            key={p.key}
-                                            className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <code className="px-2 py-1 bg-pink-500/20 text-pink-400 rounded text-sm">
-                                                    {`{{${p.key}}}`}
-                                                </code>
-                                                <span className="text-gray-300">{p.label}</span>
-                                                <span className="text-gray-500 text-xs px-2 py-0.5 bg-gray-700/50 rounded">
-                                                    {p.type}
-                                                </span>
-                                                {p.required && (
-                                                    <span className="text-red-400 text-xs">required</span>
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => removePlaceholder(p.key)}
-                                                className="text-gray-500 hover:text-red-400"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Add new placeholder */}
-                            <div className="flex items-end gap-3">
-                                <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">Key</label>
-                                    <input
-                                        type="text"
-                                        value={newPlaceholder.key}
-                                        onChange={(e) => setNewPlaceholder(prev => ({ ...prev, key: e.target.value.toLowerCase().replace(/\s/g, "_") }))}
-                                        placeholder="client_name"
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-pink-500 focus:outline-none"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">Label</label>
-                                    <input
-                                        type="text"
-                                        value={newPlaceholder.label}
-                                        onChange={(e) => setNewPlaceholder(prev => ({ ...prev, label: e.target.value }))}
-                                        placeholder="Client Name"
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-pink-500 focus:outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-gray-500 mb-1">Type</label>
-                                    <select
-                                        value={newPlaceholder.type}
-                                        onChange={(e) => setNewPlaceholder(prev => ({ ...prev, type: e.target.value as Placeholder["type"] }))}
-                                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-pink-500 focus:outline-none"
+                            <div className="grid grid-cols-3 gap-2">
+                                {CATEGORY_OPTIONS.map((cat) => (
+                                    <button
+                                        key={cat.id}
+                                        onClick={() => setForm(p => ({ ...p, category: cat.id }))}
+                                        className={`flex items-center gap-2 p-3 rounded-lg border transition-all text-sm ${
+                                            form.category === cat.id
+                                                ? `bg-gradient-to-br ${cat.color} border-transparent text-white`
+                                                : "border-white/[0.07] text-white/40 hover:border-white/20 hover:text-white/70"
+                                        }`}
                                     >
-                                        <option value="text">Text</option>
-                                        <option value="date">Date</option>
-                                        <option value="number">Number</option>
-                                        <option value="address">Address</option>
-                                    </select>
-                                </div>
-                                <button
-                                    onClick={addPlaceholder}
-                                    disabled={!newPlaceholder.key || !newPlaceholder.label}
-                                    className="px-4 py-2 bg-pink-500/20 text-pink-400 rounded-lg hover:bg-pink-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Add
-                                </button>
+                                        <span className="text-xs font-bold font-mono">{cat.code}</span>
+                                        <span>{cat.label}</span>
+                                    </button>
+                                ))}
                             </div>
                         </div>
+                    </div>
 
-                        {/* Next Button */}
-                        <button
-                            onClick={() => setStep("preview")}
-                            disabled={!form.title || !form.content}
-                            className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Continue to Preview
+                    <div className="surface-card overflow-hidden">
+                        <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-white/[0.06] bg-white/[0.01]">
+                            <TB label="B"        onClick={tbBold} />
+                            <TB label="I"        onClick={tbItalic} />
+                            <TB label="U"        onClick={tbUnder} />
+                            <div className="w-px h-4 bg-white/[0.1] mx-1" />
+                            <TB label="H1"       onClick={tbH1} />
+                            <TB label="H2"       onClick={tbH2} />
+                            <TB label="Para"     onClick={tbPara} />
+                            <div className="w-px h-4 bg-white/[0.1] mx-1" />
+                            <TB label="Bullets"  onClick={tbUL} />
+                            <TB label="Numbers"  onClick={tbOL} />
+                            <div className="w-px h-4 bg-white/[0.1] mx-1" />
+                            <TB label="Left"     onClick={tbAlignL} />
+                            <TB label="Center"   onClick={tbAlignC} />
+                            <TB label="Rule"     onClick={tbHR} />
+                            <div className="w-px h-4 bg-white/[0.1] mx-1" />
+                            <button
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); imageInputRef.current?.click(); }}
+                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-cyan-400 hover:text-white hover:bg-white/[0.07] rounded border border-transparent hover:border-white/[0.08] transition-colors"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Image
+                            </button>
+                            <div className="flex-1" />
+                            <button
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); detectPlaceholders(); }}
+                                className="px-2.5 py-1 text-xs text-cyan-400/70 hover:text-cyan-300 transition-colors"
+                            >
+                                Detect {"{{"} vars {"}}"}
+                            </button>
+                        </div>
+
+                        {form.placeholders.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 px-4 py-2 bg-white/[0.01] border-b border-white/[0.05]">
+                                <span className="text-[10px] text-white/20 mono-label self-center mr-1">insert:</span>
+                                {form.placeholders.map(p => (
+                                    <button
+                                        key={p.key}
+                                        type="button"
+                                        onMouseDown={(e) => { e.preventDefault(); insertPlaceholderTag(p.key); }}
+                                        className="text-[11px] px-2 py-0.5 rounded bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 hover:bg-cyan-400/20 transition-colors font-mono"
+                                    >
+                                        {`{{${p.key}}}`}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        <div
+                            ref={editorRef}
+                            contentEditable
+                            suppressContentEditableWarning
+                            onInput={syncContent}
+                            onMouseDown={handleEditorMouseDown}
+                            onDrop={handleEditorDrop}
+                            onDragOver={(e) => e.preventDefault()}
+                            data-placeholder="Start writing your template... Use {{placeholder}} for variable fields, or drag an image in."
+                            className="relative min-h-[420px] p-8 text-white/85 text-sm leading-7 focus:outline-none
+                                [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-3 [&_h1]:mt-5
+                                [&_h2]:text-xl  [&_h2]:font-semibold [&_h2]:text-white/90 [&_h2]:mb-2 [&_h2]:mt-4
+                                [&_p]:text-white/75 [&_p]:mb-1
+                                [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:text-white/70
+                                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:text-white/70
+                                [&_hr]:border-white/10 [&_hr]:my-4
+                                empty:before:content-[attr(data-placeholder)] empty:before:text-white/20 empty:before:pointer-events-none"
+                        />
+
+                        <input
+                            ref={imageInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            aria-label="Upload image"
+                            title="Upload image"
+                            className="hidden"
+                        />
+                    </div>
+
+                    {mintError && <p className="text-red-400 text-sm px-1">{mintError}</p>}
+
+                    <div className="surface-card p-5">
+                        <h2 className="text-sm font-semibold text-white/60 mono-label mb-4">Variable Fields</h2>
+                        {form.placeholders.length > 0 && (
+                            <div className="mb-3 space-y-1.5">
+                                {form.placeholders.map((p) => (
+                                    <div key={p.key} className="flex items-center justify-between px-3 py-2 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                                        <div className="flex items-center gap-3">
+                                            <code className="text-xs text-cyan-300 font-mono">{`{{${p.key}}}`}</code>
+                                            <span className="text-sm text-white/60">{p.label}</span>
+                                            <span className="text-xs text-white/20 px-1.5 py-0.5 bg-white/[0.04] rounded">{p.type}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => removePlaceholder(p.key)}
+                                            aria-label={`Remove placeholder ${p.key}`}
+                                            title={`Remove placeholder ${p.key}`}
+                                            className="text-white/20 hover:text-red-400 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                                <label className="block text-xs text-white/25 mb-1">Key</label>
+                                <input
+                                    type="text"
+                                    value={newPlaceholder.key}
+                                    onChange={(e) => setNewPlaceholder(p => ({ ...p, key: e.target.value.toLowerCase().replace(/\s/g, "_") }))}
+                                    placeholder="client_name"
+                                    className="w-full bg-black border border-white/[0.08] rounded-md px-3 py-2 text-white text-xs focus:border-cyan-400/40 focus:outline-none"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs text-white/25 mb-1">Label</label>
+                                <input
+                                    type="text"
+                                    value={newPlaceholder.label}
+                                    onChange={(e) => setNewPlaceholder(p => ({ ...p, label: e.target.value }))}
+                                    placeholder="Client Name"
+                                    className="w-full bg-black border border-white/[0.08] rounded-md px-3 py-2 text-white text-xs focus:border-cyan-400/40 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-white/25 mb-1">Type</label>
+                                <select
+                                    value={newPlaceholder.type}
+                                    onChange={(e) => setNewPlaceholder(p => ({ ...p, type: e.target.value as Placeholder["type"] }))}
+                                    aria-label="Placeholder type"
+                                    title="Placeholder type"
+                                    className="bg-black border border-white/[0.08] rounded-md px-3 py-2 text-white text-xs focus:border-cyan-400/40 focus:outline-none"
+                                >
+                                    <option value="text">Text</option>
+                                    <option value="date">Date</option>
+                                    <option value="number">Number</option>
+                                    <option value="address">Address</option>
+                                </select>
+                            </div>
+                            <button
+                                onClick={addPlaceholder}
+                                disabled={!newPlaceholder.key || !newPlaceholder.label}
+                                className="px-4 py-2 bg-cyan-400/10 text-cyan-400 rounded-md text-xs hover:bg-cyan-400/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-cyan-400/20"
+                            >
+                                Add
+                            </button>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => setStep("preview")}
+                        disabled={!form.title || !form.content.replace(/<[^>]*>/g, "").trim()}
+                        className="w-full py-3.5 bg-cyan-400 text-black font-semibold rounded-lg hover:bg-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        Continue to Preview
+                    </button>
+                </div>
+            )}
+
+            {step === "preview" && (
+                <div className="space-y-5">
+                    <div className="surface-card p-6">
+                        <h2 className="text-sm font-semibold text-white/60 mono-label mb-5">Preview</h2>
+                        <div className="flex items-start gap-4 mb-5">
+                            <div className={`w-12 h-12 bg-gradient-to-br ${CATEGORY_OPTIONS.find(c => c.id === form.category)?.color} rounded-lg flex items-center justify-center shrink-0`}>
+                                <span className="text-xs font-bold text-white/80">{CATEGORY_OPTIONS.find(c => c.id === form.category)?.code}</span>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white">{form.title}</h3>
+                                <p className="text-white/40 text-sm mt-0.5">{form.description}</p>
+                                <div className="flex gap-2 mt-2">
+                                    <span className="text-xs px-2 py-0.5 rounded border border-white/[0.07] text-white/30">{form.category}</span>
+                                    <span className="text-xs px-2 py-0.5 rounded border border-white/[0.07] text-white/30">{form.placeholders.length} vars</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            className="bg-black/40 border border-white/[0.06] rounded-lg p-6 max-h-[28rem] overflow-y-auto text-sm text-white/75 leading-7
+                                [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2
+                                [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-white/90 [&_h2]:mb-1
+                                [&_p]:mb-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+                                [&_hr]:border-white/10 [&_hr]:my-3
+                                [&_img]:rounded [&_img]:max-h-56 [&_img]:w-auto [&_img]:my-2"
+                            dangerouslySetInnerHTML={{ __html: form.content }}
+                        />
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={() => setStep("create")} className="flex-1 py-3 bg-white/[0.05] text-white rounded-lg hover:bg-white/[0.09] transition-colors text-sm font-medium border border-white/[0.07]">Back to Editor</button>
+                        <button onClick={() => setStep("pricing")} className="flex-1 py-3 bg-cyan-400 text-black rounded-lg font-semibold hover:bg-cyan-300 transition-colors text-sm">Set Pricing</button>
+                    </div>
+                </div>
+            )}
+
+            {step === "pricing" && (
+                <div className="space-y-5">
+                    <div className="surface-card p-6">
+                        <h2 className="text-sm font-semibold text-white/60 mono-label mb-5">Pricing</h2>
+                        <label className="block text-xs text-white/30 mb-1.5">Listing Price ($DOCU)</label>
+                        <div className="relative mb-6">
+                            <input
+                                type="number"
+                                value={form.price}
+                                onChange={(e) => setForm(p => ({ ...p, price: Math.max(1, parseInt(e.target.value) || 0) }))}
+                                aria-label="Listing price in DOCU"
+                                title="Listing price in DOCU"
+                                className="w-full bg-black border border-white/[0.08] rounded-lg px-4 py-3.5 text-2xl font-bold text-white focus:border-cyan-400/40 focus:outline-none"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/25 text-sm">$DOCU</span>
+                        </div>
+                        <RevenueSplit price={form.price} detailed />
+                    </div>
+                    <div className="surface-card p-5">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={form.requestVerification}
+                                onChange={(e) => setForm(p => ({ ...p, requestVerification: e.target.checked }))}
+                                className="mt-0.5 w-4 h-4 accent-cyan-400"
+                            />
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-white">Request Verification</span>
+                                    <span className="neon-tag">+${VERIFICATION_FEE}</span>
+                                </div>
+                                <p className="text-xs text-white/35 mt-1">Verified templates sell 3-5x more.</p>
+                            </div>
+                        </label>
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={() => setStep("preview")} className="flex-1 py-3 bg-white/[0.05] text-white rounded-lg hover:bg-white/[0.09] border border-white/[0.07] text-sm font-medium">Back</button>
+                        <button onClick={() => setStep("mint")} className="flex-1 py-3 bg-cyan-400 text-black rounded-lg font-semibold hover:bg-cyan-300 text-sm">Review &amp; Mint</button>
+                    </div>
+                </div>
+            )}
+
+            {step === "mint" && (
+                <div className="space-y-5">
+                    <div className="surface-card p-6 space-y-3">
+                        <h2 className="text-sm font-semibold text-white/60 mono-label mb-4">Confirm Minting</h2>
+                        {[
+                            ["Template",            form.title],
+                            ["Category",            form.category],
+                            ["Listing Price",       `${form.price} $DOCU`],
+                            ["Your Earnings (75%)", `${(form.price * 0.75).toFixed(2)} $DOCU / sale`],
+                        ].map(([k, v]) => (
+                            <div key={k} className="flex justify-between text-sm">
+                                <span className="text-white/35">{k}</span>
+                                <span className="text-white font-medium">{v}</span>
+                            </div>
+                        ))}
+                        <div className="border-t border-white/[0.06] pt-3 space-y-2">
+                            <div className="flex justify-between text-sm"><span className="text-white/35">Minting Fee</span><span className="text-white">{MINTING_FEE} $DOCU</span></div>
+                            {form.requestVerification && (
+                                <div className="flex justify-between text-sm"><span className="text-white/35">Verification Fee</span><span className="text-white">{VERIFICATION_FEE} $DOCU</span></div>
+                            )}
+                            <div className="flex justify-between text-base font-bold pt-1">
+                                <span className="text-white">Total</span>
+                                <span className="text-cyan-400">{totalCost} $DOCU</span>
+                            </div>
+                        </div>
+                    </div>
+                    {mintError && (
+                        <div className="rounded-lg border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-sm text-red-400">{mintError}</div>
+                    )}
+                    {mintPaymentTx && (
+                        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-3 text-xs text-emerald-300 font-mono">
+                            Mint fee paid on-chain: {mintPaymentTx}
+                        </div>
+                    )}
+                    <div className="flex gap-3">
+                        <button onClick={() => setStep("pricing")} disabled={isProcessing} className="flex-1 py-3 bg-white/[0.05] text-white rounded-lg border border-white/[0.07] text-sm font-medium disabled:opacity-40">Back</button>
+                        <button onClick={handleMint} disabled={isProcessing} className="flex-1 py-3 bg-cyan-400 text-black rounded-lg font-semibold hover:bg-cyan-300 text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                            {isProcessing ? (
+                                <><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> Minting...</>
+                            ) : `Mint Template (${totalCost} $DOCU)`}
                         </button>
                     </div>
-                )}
+                </div>
+            )}
 
-                {/* Step 2: Preview */}
-                {step === "preview" && (
-                    <div className="space-y-6">
-                        <div className="surface-card p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4">Preview Your Template</h2>
-
-                            <div className="flex items-start gap-4 mb-6">
-                                <div className={`w-16 h-16 bg-gradient-to-br ${CATEGORY_OPTIONS.find(c => c.id === form.category)?.color} rounded-xl flex items-center justify-center`}>
-                                    <span className="text-3xl">
-                                        {CATEGORY_OPTIONS.find(c => c.id === form.category)?.code}
-                                    </span>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-white">{form.title}</h3>
-                                    <p className="text-gray-400 mt-1">{form.description}</p>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className="px-2 py-1 bg-gray-700/50 rounded text-xs text-gray-300">
-                                            {form.category}
-                                        </span>
-                                        <span className="px-2 py-1 bg-gray-700/50 rounded text-xs text-gray-300">
-                                            {form.placeholders.length} variables
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-4 max-h-[32rem] overflow-y-auto space-y-3">
-                                {previewLines.map((line, index) => {
-                                    const imageMatch = line.match(/^!\[(.*?)\]\((.+)\)$/);
-                                    if (imageMatch) {
-                                        const [, alt, src] = imageMatch;
-                                        return (
-                                            <div key={`img-${index}`} className="inline-block rounded-lg border border-gray-700/60 overflow-hidden">
-                                                <Image
-                                                    src={src}
-                                                    alt={alt || "Template image"}
-                                                    width={720}
-                                                    height={400}
-                                                    unoptimized
-                                                    className="h-auto max-h-72 w-auto"
-                                                />
-                                            </div>
-                                        );
-                                    }
-
-                                    if (line.startsWith("## ")) {
-                                        return <h3 key={`h2-${index}`} className="text-lg font-semibold text-white">{line.replace(/^##\s*/, "")}</h3>;
-                                    }
-
-                                    if (line.startsWith("### ")) {
-                                        return <h4 key={`h3-${index}`} className="text-base font-semibold text-gray-100">{line.replace(/^###\s*/, "")}</h4>;
-                                    }
-
-                                    if (!line.trim()) {
-                                        return <div key={`spacer-${index}`} className="h-2" />;
-                                    }
-
-                                    return <p key={`p-${index}`} className="text-gray-300 text-sm whitespace-pre-wrap">{line}</p>;
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setStep("create")}
-                                className="flex-1 py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors"
-                            >
-                                Back to Edit
-                            </button>
-                            <button
-                                onClick={() => setStep("pricing")}
-                                className="flex-1 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
-                            >
-                                Set Pricing
-                            </button>
-                        </div>
+            {step === "success" && (
+                <div className="text-center py-16">
+                    <div className="w-16 h-16 rounded-full bg-green-400/10 border border-green-400/20 flex items-center justify-center mx-auto mb-5">
+                        <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
                     </div>
-                )}
-
-                {/* Step 3: Pricing */}
-                {step === "pricing" && (
-                    <div className="space-y-6">
-                        <div className="surface-card p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4">Set Your Price</h2>
-
-                            <div className="mb-6">
-                                <label className="block text-sm text-gray-400 mb-2">Listing Price ($DOCU)</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        value={form.price}
-                                        onChange={(e) => setForm(prev => ({ ...prev, price: Math.max(1, parseInt(e.target.value) || 0) }))}
-                                        min={1}
-                                        max={10000}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-4 text-2xl font-bold text-white focus:border-pink-500 focus:outline-none"
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">$DOCU</span>
-                                </div>
-                            </div>
-
-                            {/* Revenue Split Preview */}
-                            <RevenueSplit price={form.price} detailed />
-                        </div>
-
-                        {/* Verification Option */}
-                        <div className="surface-card p-6">
-                            <label className="flex items-start gap-4 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={form.requestVerification}
-                                    onChange={(e) => setForm(prev => ({ ...prev, requestVerification: e.target.checked }))}
-                                    className="mt-1 w-5 h-5 accent-pink-500"
-                                />
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-white">Request &quot;Blue Check&quot; Verification</span>
-                                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">+${VERIFICATION_FEE}</span>
-                                    </div>
-                                    <p className="text-gray-400 text-sm mt-1">
-                                        Verified templates sell 3-5x more. Your template will be reviewed by our legal team for accuracy and quality.
-                                    </p>
-                                </div>
-                            </label>
-                        </div>
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setStep("preview")}
-                                className="flex-1 py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={() => setStep("mint")}
-                                className="flex-1 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
-                            >
-                                Review &amp; Mint
-                            </button>
-                        </div>
+                    <h1 className="text-2xl font-bold text-white mb-1">Template Minted</h1>
+                    <p className="text-white/35 text-sm mb-2">Live on DocuMarket</p>
+                    {mintedTemplateId && <p className="text-white/20 text-xs font-mono mb-8">ID: {mintedTemplateId}</p>}
+                    <div className="flex gap-3 justify-center">
+                        <Link href="/dashboard/market" className="subtle-button text-sm">View in Market</Link>
+                        <button
+                            onClick={() => {
+                                setStep("create");
+                                setForm({ title:"", description:"", category:"LEGAL", content:"", placeholders:[], price:50, requestVerification:false });
+                                setMintedTemplateId(null);
+                                if (editorRef.current) editorRef.current.innerHTML = "";
+                            }}
+                            className="brand-button text-sm"
+                        >
+                            Create Another
+                        </button>
                     </div>
-                )}
-
-                {/* Step 4: Mint */}
-                {step === "mint" && (
-                    <div className="space-y-6">
-                        <div className="surface-card p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4">Confirm Minting</h2>
-
-                            {/* Summary */}
-                            <div className="space-y-3 mb-6">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Template</span>
-                                    <span className="text-white font-medium">{form.title}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Category</span>
-                                    <span className="text-white">{form.category}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Listing Price</span>
-                                    <span className="text-white font-medium">{form.price} $DOCU</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Your Earnings (75%)</span>
-                                    <span className="text-emerald-400 font-medium">{(form.price * 0.75).toFixed(2)} $DOCU per sale</span>
-                                </div>
-                            </div>
-
-                            <hr className="border-gray-700/50 my-4" />
-
-                            {/* Costs */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Minting Fee</span>
-                                    <span className="text-white">{MINTING_FEE} $DOCU</span>
-                                </div>
-                                {form.requestVerification && (
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Verification Fee</span>
-                                        <span className="text-white">{VERIFICATION_FEE} $DOCU</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between text-lg font-bold">
-                                    <span className="text-white">Total Cost</span>
-                                    <span className="text-pink-400">{totalCost} $DOCU</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Warning */}
-                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                            <div className="flex items-start gap-3">
-                                <svg className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <p className="text-yellow-400 text-sm">
-                                    This action will mint your template as an NFT on Asset Hub.
-                                    The content will be encrypted and stored on IPFS.
-                                </p>
-                            </div>
-                        </div>
-
-                        {mintError && (
-                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-                                <div className="flex items-start gap-3">
-                                    <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <p className="text-red-400 text-sm">{mintError}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setStep("pricing")}
-                                disabled={isProcessing}
-                                className="flex-1 py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={handleMint}
-                                disabled={isProcessing}
-                                className="flex-1 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                                {isProcessing ? (
-                                    <>
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Minting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                        </svg>
-                                        Mint Template ({totalCost} $DOCU)
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Step 5: Success */}
-                {step === "success" && (
-                    <div className="text-center py-12">
-                        <div className="w-24 h-24 bg-gradient-to-br from-emerald-500/20 to-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                            <svg className="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <h1 className="text-3xl font-bold text-white mb-2">Template Minted!</h1>
-                        <p className="text-gray-400 mb-6">
-                            Your template is now live on DocuMarket
-                        </p>
-
-                        {mintedTemplateId && (
-                            <p className="text-gray-500 text-sm mb-8 font-mono">
-                                Template ID: {mintedTemplateId}
-                            </p>
-                        )}
-
-                        {form.requestVerification && (
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/30 rounded-xl mb-6">
-                                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-blue-400 text-sm">Verification request submitted</span>
-                            </div>
-                        )}
-
-                        <div className="flex gap-4 justify-center">
-                            <Link
-                                href="/dashboard/market"
-                                className="px-6 py-3 bg-gray-800 text-white rounded-xl font-medium hover:bg-gray-700 transition-colors"
-                            >
-                                View in Market
-                            </Link>
-                            <button
-                                onClick={() => {
-                                    setStep("create");
-                                    setForm({
-                                        title: "",
-                                        description: "",
-                                        category: "LEGAL",
-                                        content: "",
-                                        placeholders: [],
-                                        price: 50,
-                                        requestVerification: false,
-                                    });
-                                    setMintedTemplateId(null);
-                                }}
-                                className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
-                            >
-                                Create Another
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -22,7 +22,7 @@ const CATEGORY_ICONS: Record<TemplateCategory, string> = {
 
 const CATEGORY_COLORS: Record<TemplateCategory, string> = {
     Legal: "from-blue-500 to-indigo-600",
-    Creative: "from-pink-500 to-purple-600",
+    Creative: "from-orange-500 to-amber-500",
     Engineering: "from-green-500 to-emerald-600",
 };
 
@@ -56,7 +56,7 @@ export function TemplateGallery({
                         placeholder="Search templates..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full px-4 py-3 pl-10 rounded-xl bg-gray-800/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors"
+                        className="w-full px-4 py-3 pl-10 rounded-xl bg-gray-800/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 transition-colors"
                     />
                     <svg
                         className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
@@ -80,7 +80,7 @@ export function TemplateGallery({
                             key={category}
                             onClick={() => setSelectedCategory(category)}
                             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === category
-                                    ? "bg-purple-600 text-white"
+                                    ? "bg-amber-500 text-white"
                                     : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
                                 }`}
                         >
@@ -121,7 +121,7 @@ function TemplateCard({ template, onSelect, showPrice = true }: TemplateCardProp
     return (
         <div
             onClick={() => onSelect(template)}
-            className="group relative bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur rounded-xl border border-gray-700/50 overflow-hidden cursor-pointer hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10"
+            className="group relative bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur rounded-xl border border-gray-700/50 overflow-hidden cursor-pointer hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/10"
         >
             {/* Category Badge */}
             <div
@@ -140,7 +140,7 @@ function TemplateCard({ template, onSelect, showPrice = true }: TemplateCardProp
 
             {/* Content */}
             <div className="p-5 pt-12">
-                <h3 className="font-semibold text-white mb-2 group-hover:text-purple-300 transition-colors">
+                <h3 className="font-semibold text-white mb-2 group-hover:text-amber-300 transition-colors">
                     {template.name}
                 </h3>
                 <p className="text-sm text-gray-400 line-clamp-2 mb-4">
@@ -151,7 +151,7 @@ function TemplateCard({ template, onSelect, showPrice = true }: TemplateCardProp
                 <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>{template.placeholders.length} fields</span>
                     {showPrice && !template.isFree && (
-                        <span className="text-purple-400 font-medium">
+                        <span className="text-amber-400 font-medium">
                             {template.price} $DOCU
                         </span>
                     )}
@@ -159,8 +159,8 @@ function TemplateCard({ template, onSelect, showPrice = true }: TemplateCardProp
             </div>
 
             {/* Hover Overlay */}
-            <div className="absolute inset-0 bg-purple-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <span className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-transform">
+            <div className="absolute inset-0 bg-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="bg-amber-500 text-white px-4 py-2 rounded-lg font-medium shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-transform">
                     Use Template
                 </span>
             </div>

@@ -10,7 +10,7 @@ import { POLKADOT_HUB_TESTNET } from "@/config/DocuMateABI";
 
 export function WalletConnect() {
     const [isOpen, setIsOpen] = useState(false);
-    const { connectMetaMask, disconnect, isConnecting, error } = useEVMWallet();
+    const { connectMetaMask, switchToTargetNetwork, disconnect, isConnecting, error } = useEVMWallet();
     const account = useEVMAccount();
     const isConnected = useIsEVMConnected();
     const chainId = useEVMChainId();
@@ -26,7 +26,7 @@ export function WalletConnect() {
             <div className="relative">
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-400 hover:to-amber-400 transition-all duration-200 shadow-lg hover:shadow-xl shadow-orange-500/30"
                 >
                     <div className={`w-2 h-2 rounded-full animate-pulse ${isCorrectChain ? "bg-green-400" : "bg-yellow-400"}`} />
                     <span className="font-medium">
@@ -51,8 +51,8 @@ export function WalletConnect() {
                 </button>
 
                 {isOpen && (
-                    <div className="absolute right-0 mt-2 w-72 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                        <div className="p-4 border-b border-gray-700">
+                    <div className="absolute right-0 mt-2 w-72 bg-[#171d29] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                        <div className="p-4 border-b border-white/10">
                             <p className="text-gray-400 text-sm">Connected Account</p>
                             <p className="text-white font-mono text-sm mt-1 break-all">
                                 {account}
@@ -63,6 +63,26 @@ export function WalletConnect() {
                         </div>
 
                         <div className="p-2">
+                            {!isCorrectChain && (
+                                <button
+                                    onClick={async () => {
+                                        await switchToTargetNetwork();
+                                    }}
+                                    className="w-full px-4 py-2 text-amber-300 hover:bg-amber-900/20 rounded-lg transition-colors text-left"
+                                    title="Switch to Polkadot Hub Testnet"
+                                >
+                                    Switch To Polkadot Hub Testnet
+                                </button>
+                            )}
+                            <a
+                                href="https://faucet.polkadot.io/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block w-full px-4 py-2 text-cyan-300 hover:bg-cyan-900/20 rounded-lg transition-colors text-left"
+                                title="Open testnet faucet"
+                            >
+                                Get Testnet PAS (Faucet)
+                            </a>
                             <button
                                 onClick={() => {
                                     disconnect();
@@ -80,11 +100,11 @@ export function WalletConnect() {
     }
 
     return (
-        <div className="flex flex-col items-end gap-2">
+        <div className="inline-flex flex-col items-center gap-2">
             <button
                 onClick={connectMetaMask}
                 disabled={isConnecting}
-                className="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-400 hover:to-amber-400 transition-all duration-200 shadow-lg hover:shadow-xl shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
                 {isConnecting ? (
                     <span className="flex items-center gap-2">
@@ -114,9 +134,7 @@ export function WalletConnect() {
                 )}
             </button>
 
-            {error && (
-                <p className="text-red-400 text-sm max-w-xs text-right">{error}</p>
-            )}
+            {error && <p className="text-red-400 text-sm max-w-xs text-center">{error}</p>}
         </div>
     );
 }

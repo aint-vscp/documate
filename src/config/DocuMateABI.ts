@@ -33,6 +33,7 @@ export const DOCUMATE_ABI = [
     "function getUserDocuments(address _user) external view returns (uint256[])",
 
     // Marketplace (75/20/5 split)
+    "function purchase(address creator) external payable",
     "function executeTransaction(address _creator) external payable",
     "function calculateSplit(uint256 _amount) external pure returns (uint256 creatorAmount, uint256 treasuryAmount, uint256 stakingAmount)",
 

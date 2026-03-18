@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { ethers } from "ethers";
+import { withRateLimit } from "@/lib/security/rateLimit";
 
 const STAKING_ABI = [
     "function slashStake(address _user, string _reason) external",
@@ -72,6 +73,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
+        const limited = withRateLimit(request, "admin-breaches-post", {
+            windowMs: 60_000,
+            maxRequests: 20,
+        });
+        if (limited) return limited;
+
         const body = await request.json();
         const { breachId, action, severity, resolution, reviewerAddress } = body;
 

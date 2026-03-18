@@ -53,22 +53,25 @@ function decodeStakingError(error: unknown): string {
 }
 
 export function useStakingContract() {
+    const hasConfiguredStakingAddress = /^0x[a-fA-F0-9]{40}$/.test(STAKING_CONTRACT_ADDRESS)
+        && STAKING_CONTRACT_ADDRESS.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+
     const getReadContract = useCallback((): ethers.Contract | null => {
         const providerObject = getMetaMaskProvider();
         if (!providerObject) return null;
-        if (STAKING_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") return null;
+        if (!hasConfiguredStakingAddress) return null;
         const provider = new ethers.BrowserProvider(providerObject as never);
         return new ethers.Contract(STAKING_CONTRACT_ADDRESS, STAKING_ABI, provider);
-    }, []);
+    }, [hasConfiguredStakingAddress]);
 
     const getWriteContract = useCallback(async (): Promise<ethers.Contract | null> => {
         const providerObject = getMetaMaskProvider();
         if (!providerObject) return null;
-        if (STAKING_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") return null;
+        if (!hasConfiguredStakingAddress) return null;
         const provider = new ethers.BrowserProvider(providerObject as never);
         const signer = await provider.getSigner();
         return new ethers.Contract(STAKING_CONTRACT_ADDRESS, STAKING_ABI, signer);
-    }, []);
+    }, [hasConfiguredStakingAddress]);
 
     const stakeReputation = useCallback(async () => {
         const contract = await getWriteContract();

@@ -8,6 +8,23 @@
 
 import type { EncryptedPrompt, AIResponse } from "@/types";
 
+interface TEESessionContext {
+    activeTemplate?: {
+        id: string;
+        name: string;
+        description: string;
+        placeholders: Array<{ key: string; label: string; type: string }>;
+    } | null;
+    placeholderValues?: Record<string, string>;
+    didProfile?: {
+        name?: string;
+        role?: string;
+        did?: string;
+        wallet?: string | null;
+    };
+    recentMessages?: Array<{ role: string; content: string }>;
+}
+
 // ============================================================
 // Configuration
 // ============================================================
@@ -95,7 +112,7 @@ export async function decryptResponse(
  * 
  * For MVP, we call our proxy API endpoint which mocks this flow
  */
-export async function sendToTEE(prompt: string): Promise<AIResponse> {
+export async function sendToTEE(prompt: string, sessionContext?: TEESessionContext): Promise<AIResponse> {
     try {
         // Encrypt the prompt
         const encryptedPrompt = await encryptPrompt(prompt);
@@ -108,6 +125,7 @@ export async function sendToTEE(prompt: string): Promise<AIResponse> {
             },
             body: JSON.stringify({
                 encryptedPrompt,
+                sessionContext,
             }),
         });
 
@@ -194,6 +212,7 @@ export interface PhatContractConfig {
  * Production Phala endpoints
  */
 export const PHALA_ENDPOINTS = {
+    // Mainnet endpoint is kept as reference config only; testnet flow uses the testnet endpoint.
     mainnet: "wss://api.phala.network/ws",
     testnet: "wss://poc6.phala.network/ws",
 };

@@ -5,14 +5,58 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+interface SessionContext {
+    activeTemplate?: {
+        id: string;
+        name: string;
+        description: string;
+        placeholders: Array<{ key: string; label: string; type: string }>;
+    } | null;
+    placeholderValues?: Record<string, string>;
+    didProfile?: {
+        name?: string;
+        role?: string;
+        did?: string;
+        wallet?: string | null;
+    };
+    recentMessages?: Array<{ role: string; content: string }>;
+}
+
 // Mock LLM response for demo purposes
 // In production, this would be handled by the Phat Contract in TEE
-async function mockLLMResponse(prompt: string): Promise<string> {
+async function mockLLMResponse(prompt: string, context?: SessionContext): Promise<string> {
     // Simulate processing delay
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Simple context-aware responses for demo
     const promptLower = prompt.toLowerCase();
+    const activeTemplateName = context?.activeTemplate?.name?.toLowerCase() ?? "";
+    const currentFields = context?.placeholderValues ?? {};
+
+    if (activeTemplateName.includes("non-disclosure") || activeTemplateName.includes("nda")) {
+        if (promptLower.includes("purpose") || promptLower.includes("disclos") || promptLower.includes("confidential")) {
+            const purpose = prompt.replace(/^with\s+a\s+purpose\s+of\s+/i, "").trim();
+            return `You're still editing the active NDA session.
+
+Suggested purpose clause:
+- **Purpose**: ${purpose || "To allow limited disclosure of party identity while keeping the underlying work, methods, and confidential deliverables non-public."}
+
+This means the agreement can be framed so the receiving party may disclose who performed the work, but may not disclose the confidential details of what was done, how it was done, or any protected materials.
+
+If you want, I can keep applying more NDA-specific field updates in this same session.`;
+        }
+
+        return `You are still inside the active NDA drafting session for ${context?.didProfile?.name || "the current user"}.
+
+Current known fields:
+${Object.keys(currentFields).length > 0 ? Object.entries(currentFields).map(([key, value]) => `- ${key}: ${value}`).join("\n") : "- No fields captured yet"}
+
+Continue giving NDA details naturally, for example:
+- "receiver is Acme Corp"
+- "purpose is evaluation of a client proposal"
+- "duration is 3 years"
+- "governing law is Singapore"`;
+    }
 
     if (promptLower.includes("nda") || promptLower.includes("non-disclosure")) {
         return `# Non-Disclosure Agreement (NDA)
@@ -109,7 +153,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { encryptedPrompt } = body;
+        const { encryptedPrompt, sessionContext } = body;
 
         if (!encryptedPrompt || !encryptedPrompt.ciphertext) {
             return NextResponse.json(
@@ -127,7 +171,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate response (mock LLM call)
-        const response = await mockLLMResponse(prompt);
+        const response = await mockLLMResponse(prompt, sessionContext);
 
         // Mock encryption of response
         const encryptedContent = btoa(response);

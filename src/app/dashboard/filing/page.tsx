@@ -6,17 +6,30 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useIsEVMConnected, useEVMAccount } from "@/hooks/useEVMWallet";
 import { sendToTEE, checkTEEHealth } from "@/lib/polkadot/phala";
 import { loadUserProfile } from "@/lib/polkadot/kilt";
 import { getAllTemplates, buildPlaceholderFields } from "@/lib/document/templateService";
+import { createDocument, syncDocumentToServer, updateDocumentStatus } from "@/lib/document";
 import { TemplateGallery } from "@/components/document/TemplateGallery";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
 import type { AIMessage, DocumentTemplate, PlaceholderField, UserProfile } from "@/types";
 
 type ViewMode = "gallery" | "editor";
 
+const DOCUWRITER_SESSION_KEY = "documate-docuwriter-session";
+
+interface DocuWriterSessionMemory {
+    viewMode: ViewMode;
+    selectedTemplateId: string | null;
+    receiverAddress: string;
+    placeholderValues: Record<string, string>;
+    messages: AIMessage[];
+}
+
 export default function DocuWriterPage() {
+    const router = useRouter();
     const isConnected = useIsEVMConnected();
     const account = useEVMAccount();
 
@@ -24,6 +37,7 @@ export default function DocuWriterPage() {
     const [viewMode, setViewMode] = useState<ViewMode>("gallery");
     const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
     const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
+    const [receiverAddress, setReceiverAddress] = useState("");
     const [activePlaceholders, setActivePlaceholders] = useState<PlaceholderField[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -48,7 +62,45 @@ export default function DocuWriterPage() {
         checkTEEHealth().then(setTeeStatus);
         const profile = loadUserProfile();
         setUserProfile(profile);
+
+        if (typeof window === "undefined") return;
+
+        const rawSession = sessionStorage.getItem(DOCUWRITER_SESSION_KEY);
+        if (!rawSession) return;
+
+        try {
+            const session = JSON.parse(rawSession) as DocuWriterSessionMemory;
+            setMessages(session.messages ?? []);
+            setPlaceholderValues(session.placeholderValues ?? {});
+            setReceiverAddress(session.receiverAddress ?? "");
+            setViewMode(session.viewMode ?? "gallery");
+
+            if (session.selectedTemplateId) {
+                const template = getAllTemplates().find((entry) => entry.id === session.selectedTemplateId) ?? null;
+                if (template) {
+                    setSelectedTemplate(template);
+                    setActivePlaceholders(buildPlaceholderFields(template));
+                    setViewMode("editor");
+                }
+            }
+        } catch {
+            sessionStorage.removeItem(DOCUWRITER_SESSION_KEY);
+        }
     }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const session: DocuWriterSessionMemory = {
+            viewMode,
+            selectedTemplateId: selectedTemplate?.id ?? null,
+            receiverAddress,
+            placeholderValues,
+            messages,
+        };
+
+        sessionStorage.setItem(DOCUWRITER_SESSION_KEY, JSON.stringify(session));
+    }, [messages, placeholderValues, receiverAddress, selectedTemplate?.id, viewMode]);
 
     // Auto-scroll chat to bottom
     useEffect(() => {
@@ -250,6 +302,176 @@ export default function DocuWriterPage() {
         ) || null;
     }, []);
 
+    const buildSessionContext = useCallback(() => {
+        const didData = getDIDData();
+
+        return {
+            activeTemplate: selectedTemplate
+                ? {
+                    id: selectedTemplate.id,
+                    name: selectedTemplate.name,
+                    description: selectedTemplate.description,
+                    placeholders: activePlaceholders.map((field) => ({
+                        key: field.key,
+                        label: field.label,
+                        type: field.type,
+                    })),
+                }
+                : null,
+            placeholderValues,
+            didProfile: {
+                name: didData.name,
+                role: didData.role,
+                did: didData.did,
+                wallet: account,
+            },
+            recentMessages: messages.slice(-6).map((message) => ({
+                role: message.role,
+                content: message.content,
+            })),
+        };
+    }, [account, activePlaceholders, getDIDData, messages, placeholderValues, selectedTemplate]);
+
+    const formalizeText = useCallback((raw: string) => {
+        const contractions: Record<string, string> = {
+            "don't": "do not",
+            "doesn't": "does not",
+            "didn't": "did not",
+            "can't": "cannot",
+            "couldn't": "could not",
+            "won't": "will not",
+            "wouldn't": "would not",
+            "shouldn't": "should not",
+            "haven't": "have not",
+            "hasn't": "has not",
+            "hadn't": "had not",
+            "isn't": "is not",
+            "aren't": "are not",
+            "wasn't": "was not",
+            "weren't": "were not",
+            "i'm": "I am",
+            "i've": "I have",
+            "i'll": "I will",
+            "i'd": "I would",
+            "you're": "you are",
+            "you've": "you have",
+            "you'll": "you will",
+            "they're": "they are",
+            "they've": "they have",
+            "they'll": "they will",
+            "we're": "we are",
+            "we've": "we have",
+            "we'll": "we will",
+            "it's": "it is",
+            "it'll": "it will",
+            "that's": "that is",
+            "there's": "there is",
+            "here's": "here is",
+            "let's": "let us",
+        };
+
+        const informalReplacements: Array<[RegExp, string]> = [
+            [/\bgotta\b/gi, "must"],
+            [/\bwanna\b/gi, "wish to"],
+            [/\bgonna\b/gi, "going to"],
+            [/\bkinda\b/gi, "somewhat"],
+            [/\bsorta\b/gi, "somewhat"],
+            [/\bstuff\b/gi, "materials"],
+            [/\bthings\b/gi, "matters"],
+            [/\bwho did it\b/gi, "the identity of the performing party"],
+            [/\bwhat I did\b/gi, "the confidential nature and details of the work performed"],
+            [/\bwhat we did\b/gi, "the confidential nature and details of the work performed"],
+            [/\bwhat was done\b/gi, "the confidential nature and details of the work performed"],
+        ];
+
+        let text = raw.replace(/\s+/g, " ").trim();
+
+        Object.entries(contractions).forEach(([from, to]) => {
+            text = text.replace(new RegExp(`\\b${from.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "gi"), to);
+        });
+
+        informalReplacements.forEach(([pattern, replacement]) => {
+            text = text.replace(pattern, replacement);
+        });
+
+        text = text.replace(/\bi\b/g, "I");
+        text = text.replace(/\s+([,.;:!?])/g, "$1");
+        text = text.replace(/(?:^|[.!?]\s+)([a-z])/g, (match) => match.toUpperCase());
+
+        if (text && !/[.!?]$/.test(text)) {
+            text += ".";
+        }
+
+        return text;
+    }, []);
+
+    const titleCasePhrase = useCallback((raw: string) => {
+        return raw
+            .trim()
+            .replace(/\s+/g, " ")
+            .split(" ")
+            .map((part) => {
+                if (/^[A-Z0-9&.-]{2,}$/.test(part)) {
+                    return part;
+                }
+
+                return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+            })
+            .join(" ");
+    }, []);
+
+    const formalizeFieldValue = useCallback((field: PlaceholderField, value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return trimmed;
+
+        if (field.type === "number" || field.type === "date" || field.type === "address") {
+            return trimmed;
+        }
+
+        if (/name|jurisdiction/.test(field.key)) {
+            return titleCasePhrase(trimmed.replace(/[.]+$/, ""));
+        }
+
+        if (field.key === "purpose") {
+            const refined = formalizeText(trimmed)
+                .replace(/^To allow /i, "To permit ")
+                .replace(/^The purpose is /i, "")
+                .replace(/^Purpose is /i, "");
+
+            if (/identity of the performing party/i.test(refined) && /confidential/i.test(refined) === false) {
+                return "To permit disclosure of the identity of the performing party while preserving the confidentiality of the work performed, the methods used, and all related deliverables.";
+            }
+
+            if (/^To /i.test(refined)) {
+                return refined;
+            }
+
+            return `To ${refined.charAt(0).toLowerCase()}${refined.slice(1)}`;
+        }
+
+        if (/description|deliverables|schedule|service|address/.test(field.key) || field.type === "textarea") {
+            return formalizeText(trimmed);
+        }
+
+        return formalizeText(trimmed).replace(/[.]$/, "");
+    }, [formalizeText, titleCasePhrase]);
+
+    const formalizeParsedValues = useCallback((
+        values: Record<string, string>,
+        fields: PlaceholderField[]
+    ) => {
+        const refinedEntries = Object.entries(values).map(([key, value]) => {
+            const field = fields.find((entry) => entry.key === key);
+            if (!field) {
+                return [key, value] as const;
+            }
+
+            return [key, formalizeFieldValue(field, value)] as const;
+        });
+
+        return Object.fromEntries(refinedEntries);
+    }, [formalizeFieldValue]);
+
     /**
      * Parse user chat input to extract field values for the active template.
      * Uses a flexible approach: look for known placeholder labels / keys in the text
@@ -294,7 +516,7 @@ export default function DocuWriterPage() {
         }
 
         // Purpose from phrases like "need an NDA to ..." or "purpose is ..."
-        const purposeMatch = text.match(/(?:need\s+an?\s+nda\s+to|purpose\s+(?:of\s+disclosure\s+)?(?:is|:)|for\s+the\s+purpose\s+of)\s+(.+?)(?:\.|,|$)/i);
+        const purposeMatch = text.match(/(?:need\s+an?\s+nda\s+to|purpose\s+(?:of\s+disclosure\s+)?(?:is|:)|for\s+the\s+purpose\s+of|with\s+a\s+purpose\s+of)\s+(.+?)(?:\.|,|$)/i);
         if (purposeMatch && purposeField) {
             values[purposeField.key] = purposeMatch[1].trim();
         }
@@ -409,6 +631,39 @@ export default function DocuWriterPage() {
         return values;
     }, []);
 
+    const appendAssistantMessage = useCallback((content: string) => {
+        const assistantMessage: AIMessage = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content,
+            timestamp: new Date().toISOString(),
+            isEncrypted: false,
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+    }, []);
+
+    const handleEnhanceAllFields = useCallback(() => {
+        if (!(selectedTemplate && viewMode === "editor")) {
+            appendAssistantMessage("Load a template first, then click Analyze & Apply to enhance all current document fields.");
+            return;
+        }
+
+        const currentEntries = Object.entries(placeholderValues).filter(([, value]) => value.trim().length > 0);
+        if (currentEntries.length === 0) {
+            appendAssistantMessage("No field values to enhance yet. Ask AI on the right to fill fields first.");
+            return;
+        }
+
+        const currentValues = Object.fromEntries(currentEntries);
+        const enhanced = formalizeParsedValues(currentValues, activePlaceholders);
+
+        setPlaceholderValues((prev) => ({ ...prev, ...enhanced }));
+
+        const updatedCount = Object.keys(enhanced).length;
+        appendAssistantMessage(`Enhanced ${updatedCount} field${updatedCount === 1 ? "" : "s"} into formal document language. The template structure stayed the same.`);
+    }, [activePlaceholders, appendAssistantMessage, formalizeParsedValues, placeholderValues, selectedTemplate, viewMode]);
+
     /**
      * Handle AI chat message send
      */
@@ -429,7 +684,6 @@ export default function DocuWriterPage() {
         setIsLoading(true);
 
         try {
-            // If a template is already loaded, try to parse field updates from the message
             if (selectedTemplate && viewMode === "editor") {
                 const parsed = parseUserInputForValues(userInput, activePlaceholders);
                 const parsedKeys = Object.keys(parsed);
@@ -437,35 +691,16 @@ export default function DocuWriterPage() {
                 if (parsedKeys.length > 0) {
                     setPlaceholderValues((prev) => ({ ...prev, ...parsed }));
 
-                    const fieldSummary = parsedKeys.map(k => {
-                        const field = activePlaceholders.find(f => f.key === k);
-                        return `- **${field?.label || k}**: ${parsed[k]}`;
+                    const fieldSummary = parsedKeys.map((key) => {
+                        const field = activePlaceholders.find((entry) => entry.key === key);
+                        return `- **${field?.label || key}**: ${parsed[key]}`;
                     }).join("\n");
 
-                    const assistantMessage: AIMessage = {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: `Updated the following fields:\n\n${fieldSummary}\n\nThe preview has been updated. Would you like to change anything else?`,
-                        timestamp: new Date().toISOString(),
-                        isEncrypted: false,
-                    };
-                    setMessages((prev) => [...prev, assistantMessage]);
+                    appendAssistantMessage(`Applied your input to the left Document Fields:\n\n${fieldSummary}\n\nClick Analyze & Apply above Document Fields if you want formal enhancement.`);
                 } else {
-                    // Couldn't parse fields - try TEE for general help
-                    const response = await sendToTEE(userInput);
-                    const assistantMessage: AIMessage = {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: response.success
-                            ? response.plainContent || "Response received."
-                            : response.error || "An error occurred.",
-                        timestamp: new Date().toISOString(),
-                        isEncrypted: false,
-                    };
-                    setMessages((prev) => [...prev, assistantMessage]);
+                    appendAssistantMessage("I could not map that message to the current template fields. Try naming values like \"purpose is ...\", \"bill to ...\", or \"duration is 3 years\".");
                 }
             } else {
-                // No template loaded yet - check if user wants a template
                 const matchedTemplate = findTemplateByKeyword(userInput);
 
                 if (matchedTemplate) {
@@ -474,38 +709,18 @@ export default function DocuWriterPage() {
                     const autoFillSummary = loadTemplate(matchedTemplate);
                     setIsGenerating(false);
 
-                    const assistantMessage: AIMessage = {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: `I found the perfect template: "${matchedTemplate.name}"!${autoFillSummary}\n\nThe document is loaded. Edit the fields on the left or tell me what to fill in.\n\nExample: "invoice number 0001, bill to Acme Corp, total 500 USD"`,
-                        timestamp: new Date().toISOString(),
-                        isEncrypted: false,
-                    };
-                    setMessages((prev) => [...prev, assistantMessage]);
+                    appendAssistantMessage(`I found the perfect template: "${matchedTemplate.name}"!${autoFillSummary}\n\nThe document is loaded. Messages on the right will now fill the left Document Fields.\n\nUse Analyze & Apply above Document Fields to enhance all fields.`);
                 } else {
-                    // No template match - use TEE for general AI response
-                    const response = await sendToTEE(userInput);
-                    const assistantMessage: AIMessage = {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: response.success
+                    const response = await sendToTEE(userInput, buildSessionContext());
+                    appendAssistantMessage(
+                        response.success
                             ? response.plainContent || "Response received."
-                            : response.error || "An error occurred.",
-                        timestamp: new Date().toISOString(),
-                        isEncrypted: false,
-                    };
-                    setMessages((prev) => [...prev, assistantMessage]);
+                            : response.error || "An error occurred."
+                    );
                 }
             }
         } catch {
-            const errorMessage: AIMessage = {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: "Failed to process your request. Please try again.",
-                timestamp: new Date().toISOString(),
-                isEncrypted: false,
-            };
-            setMessages((prev) => [...prev, errorMessage]);
+            appendAssistantMessage("Failed to process your request. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -524,9 +739,87 @@ export default function DocuWriterPage() {
     const handleBackToGallery = () => {
         setViewMode("gallery");
         setSelectedTemplate(null);
+        setReceiverAddress("");
         setPlaceholderValues({});
         setActivePlaceholders([]);
+
+        if (typeof window !== "undefined") {
+            sessionStorage.removeItem(DOCUWRITER_SESSION_KEY);
+        }
     };
+
+    const validateReceiverAddress = useCallback(() => {
+        const trimmed = receiverAddress.trim();
+        if (!trimmed) {
+            appendAssistantMessage("Receiver wallet address is required before saving or sending.");
+            return null;
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+            appendAssistantMessage("Receiver wallet address must be a valid EVM address.");
+            return null;
+        }
+
+        if (account && trimmed.toLowerCase() === account.toLowerCase()) {
+            appendAssistantMessage("Receiver must be another Docu user address (not your own wallet).");
+            return null;
+        }
+
+        return trimmed;
+    }, [account, appendAssistantMessage, receiverAddress]);
+
+    const handleSaveDraft = useCallback(async () => {
+        if (!selectedTemplate || !account) return;
+
+        const receiver = validateReceiverAddress();
+        if (!receiver) return;
+
+        const doc = createDocument({
+            templateId: selectedTemplate.id,
+            templateName: selectedTemplate.name,
+            sender: account,
+            receiver,
+            content: renderedContent(),
+            placeholderValues,
+        });
+
+        try {
+            await syncDocumentToServer(doc);
+        } catch {
+            appendAssistantMessage("Draft saved locally. Shared sync will retry when online.");
+        }
+
+        appendAssistantMessage("Draft saved. Opening document details...");
+        router.push(`/dashboard/documents/${doc.id}`);
+    }, [account, appendAssistantMessage, placeholderValues, renderedContent, router, selectedTemplate, validateReceiverAddress]);
+
+    const handleSendForSignature = useCallback(async () => {
+        if (!selectedTemplate || !account) return;
+
+        const receiver = validateReceiverAddress();
+        if (!receiver) return;
+
+        const doc = createDocument({
+            templateId: selectedTemplate.id,
+            templateName: selectedTemplate.name,
+            sender: account,
+            receiver,
+            content: renderedContent(),
+            placeholderValues,
+        });
+
+        const pendingDoc = updateDocumentStatus(doc.id, "PENDING_SENDER_SIGN");
+        const targetId = pendingDoc?.id ?? doc.id;
+
+        try {
+            await syncDocumentToServer(pendingDoc ?? doc);
+        } catch {
+            appendAssistantMessage("Document moved to signing workflow locally. Shared sync will retry when online.");
+        }
+
+        appendAssistantMessage("Document sent to workflow. Sign as sender to anchor on-chain, then receiver can finalize.");
+        router.push(`/dashboard/documents/${targetId}`);
+    }, [account, appendAssistantMessage, placeholderValues, renderedContent, router, selectedTemplate, validateReceiverAddress]);
 
     const quickPrompts = [
         "I need an NDA for my client",
@@ -539,9 +832,9 @@ export default function DocuWriterPage() {
     if (!isConnected) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-6">
                     <svg
-                        className="w-10 h-10 text-pink-400"
+                        className="w-10 h-10 text-orange-400"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -570,6 +863,8 @@ export default function DocuWriterPage() {
                     {viewMode === "editor" && (
                         <button
                             onClick={handleBackToGallery}
+                            aria-label="Back to template gallery"
+                            title="Back to template gallery"
                             className="p-2 rounded-lg bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -608,7 +903,9 @@ export default function DocuWriterPage() {
                     {/* Mobile chat toggle */}
                     <button
                         onClick={() => setIsMobileChatOpen(true)}
-                        className="lg:hidden p-2.5 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full text-white shadow-lg shadow-purple-500/25"
+                        aria-label="Open AI assistant"
+                        title="Open AI assistant"
+                        className="lg:hidden p-2.5 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full text-white shadow-lg shadow-amber-500/25"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -653,6 +950,41 @@ export default function DocuWriterPage() {
                             <div className="px-4 py-3 border-b border-gray-700/50 flex-shrink-0">
                                 <h3 className="text-sm font-semibold text-white">Document Fields</h3>
                                 <p className="text-xs text-gray-500 mt-0.5">Edit values to update the preview</p>
+                                <div className="mt-3 space-y-2">
+                                    <label className="block text-[11px] text-gray-400">Receiver Wallet Address</label>
+                                    <input
+                                        type="text"
+                                        value={receiverAddress}
+                                        onChange={(e) => setReceiverAddress(e.target.value)}
+                                        placeholder="0x..."
+                                        aria-label="Receiver wallet address"
+                                        title="Receiver wallet address"
+                                        className="w-full px-2.5 py-2 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 transition-colors text-xs font-mono"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleEnhanceAllFields}
+                                    disabled={isLoading || !selectedTemplate}
+                                    className="mt-3 w-full px-3 py-2 bg-cyan-500 text-black rounded-lg hover:bg-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold"
+                                >
+                                    Analyze & Apply
+                                </button>
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={handleSaveDraft}
+                                        disabled={!selectedTemplate || isLoading}
+                                        className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold"
+                                    >
+                                        Save Draft
+                                    </button>
+                                    <button
+                                        onClick={handleSendForSignature}
+                                        disabled={!selectedTemplate || isLoading}
+                                        className="w-full px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold"
+                                    >
+                                        Send
+                                    </button>
+                                </div>
                             </div>
                             <div className="flex-1 overflow-y-auto p-3 space-y-3">
                                 {activePlaceholders.map((placeholder) => (
@@ -705,6 +1037,8 @@ export default function DocuWriterPage() {
                             <h3 className="text-lg font-semibold text-white">AI Assistant</h3>
                             <button
                                 onClick={() => setIsMobileChatOpen(false)}
+                                aria-label="Close AI assistant"
+                                title="Close AI assistant"
                                 className="p-2 text-gray-400 hover:text-white transition-colors"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -741,7 +1075,7 @@ function PlaceholderInput({
     onChange: (value: string) => void;
 }) {
     const baseClasses =
-        "w-full px-2.5 py-1.5 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50 transition-colors text-xs";
+        "w-full px-2.5 py-1.5 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 transition-colors text-xs";
 
     return (
         <div>
@@ -754,6 +1088,8 @@ function PlaceholderInput({
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder.label}
+                    aria-label={placeholder.label}
+                    title={placeholder.label}
                     className={`${baseClasses} resize-none`}
                     rows={2}
                 />
@@ -762,6 +1098,8 @@ function PlaceholderInput({
                     type="date"
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
+                    aria-label={placeholder.label}
+                    title={placeholder.label}
                     className={baseClasses}
                 />
             ) : placeholder.type === "number" ? (
@@ -770,6 +1108,8 @@ function PlaceholderInput({
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder.label}
+                    aria-label={placeholder.label}
+                    title={placeholder.label}
                     className={baseClasses}
                 />
             ) : (
@@ -778,6 +1118,8 @@ function PlaceholderInput({
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder.label}
+                    aria-label={placeholder.label}
+                    title={placeholder.label}
                     className={`${baseClasses} ${placeholder.type === "address" ? "font-mono" : ""}`}
                 />
             )}
@@ -814,8 +1156,8 @@ function AIChatPanel({
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center px-2">
-                        <div className="w-12 h-12 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-xl flex items-center justify-center mb-3">
-                            <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-xl flex items-center justify-center mb-3">
+                            <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                             </svg>
                         </div>
@@ -844,12 +1186,12 @@ function AIChatPanel({
                             <div
                                 className={`max-w-[90%] rounded-xl px-3 py-2 ${
                                     msg.role === "user"
-                                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+                                        ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white"
                                         : "bg-gray-800 text-gray-200"
                                 }`}
                             >
                                 {msg.role === "user" && msg.isEncrypted && (
-                                    <div className="flex items-center gap-1 text-[10px] text-pink-200 mb-1">
+                                    <div className="flex items-center gap-1 text-[10px] text-orange-200 mb-1">
                                         <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                         </svg>
@@ -859,7 +1201,7 @@ function AIChatPanel({
                                 <div className="whitespace-pre-wrap text-xs leading-relaxed">
                                     {msg.content}
                                 </div>
-                                <p className={`text-[10px] mt-1.5 ${msg.role === "user" ? "text-pink-200" : "text-gray-500"}`}>
+                                <p className={`text-[10px] mt-1.5 ${msg.role === "user" ? "text-orange-200" : "text-gray-500"}`}>
                                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                 </p>
                             </div>
@@ -889,12 +1231,16 @@ function AIChatPanel({
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && onSend()}
                         placeholder="Ask about documents..."
-                        className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+                        aria-label="DocuWriter chat input"
+                        title="DocuWriter chat input"
+                        className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
                     />
                     <button
                         onClick={onSend}
                         disabled={isLoading || !input.trim()}
-                        className="p-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Send chat message"
+                        title="Send chat message"
+                        className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

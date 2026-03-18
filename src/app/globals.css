@@ -3,24 +3,43 @@
 @tailwind utilities;
 
 :root {
-  --bg: #000000;
-  --bg-raised: #080810;
-  --surface: rgba(255, 255, 255, 0.025);
-  --surface-hover: rgba(255, 255, 255, 0.045);
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.14);
-  --text: #f1f5f9;
-  --muted: #64748b;
-  --cyan: #22d3ee;
-  --cyan-dim: rgba(34, 211, 238, 0.1);
-  --purple: #a855f7;
-  --pink: #f472b6;
+  --bg: #0f131b;
+  --bg-raised: #171d29;
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.2);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --brand-orange: #f6851b;
+  --brand-orange-soft: #fb923c;
+  --brand-blue: #4f8cff;
+  --brand-teal: #2ec7b9;
 }
 
 body {
   font-family: var(--font-space-grotesk), sans-serif;
   color: var(--text);
   background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 8% -12%, rgba(246, 133, 27, 0.2), transparent 32%),
+    radial-gradient(circle at 94% 16%, rgba(79, 140, 255, 0.13), transparent 24%),
+    linear-gradient(180deg, #111723 0%, #0f131b 48%, #0c111a 100%);
+}
+
+/* Avoid true-black utility backgrounds from Tailwind in the design layer */
+.bg-black {
+  background-color: #0f131b !important;
+}
+
+.from-black {
+  --tw-gradient-from: #0f131b var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(15 19 27 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-black {
+  --tw-gradient-to: #0f131b var(--tw-gradient-to-position) !important;
 }
 
 /* Dot grid overlay */
@@ -28,8 +47,10 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
   pointer-events: none;
   z-index: 0;
 }
@@ -42,7 +63,7 @@ body::after {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent 5%, rgba(34, 211, 238, 0.55) 50%, transparent 95%);
+  background: linear-gradient(90deg, transparent 5%, rgba(246, 133, 27, 0.68) 50%, transparent 95%);
   pointer-events: none;
   z-index: 100;
 }
@@ -59,7 +80,7 @@ body::after {
 .delay-1000 { animation-delay: 1000ms; }
 
 @layer utilities {
-  .text-balance { text-wrap: balance; }
+  .text-balance { overflow-wrap: anywhere; }
 
   .line-clamp-2 {
     display: -webkit-box;
@@ -86,31 +107,35 @@ body::after {
 
 @layer components {
   .gradient-text {
-    @apply bg-gradient-to-r from-cyan-300 via-purple-300 to-pink-300 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-orange-300 via-orange-400 to-amber-200 bg-clip-text text-transparent;
   }
 
   .surface-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 0.625rem;
-    transition: border-color 0.15s, background 0.15s;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
 
   .surface-card:hover {
     background: var(--surface-hover);
     border-color: var(--border-hover);
+    transform: translateY(-1px);
   }
 
   .brand-button {
     @apply inline-flex items-center justify-center rounded-md px-5 py-2.5 text-sm font-semibold transition-all duration-150;
-    background: #22d3ee;
-    color: #000;
-    box-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+    background: linear-gradient(135deg, #f6851b 0%, #f97316 42%, #fb923c 100%);
+    color: #fff;
+    box-shadow: 0 10px 28px rgba(246, 133, 27, 0.32);
   }
 
   .brand-button:hover {
-    background: #67e8f9;
-    box-shadow: 0 0 28px rgba(34, 211, 238, 0.55);
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 42%, #fbbf24 100%);
+    box-shadow: 0 16px 34px rgba(246, 133, 27, 0.42);
     transform: translateY(-1px);
   }
 
@@ -120,8 +145,8 @@ body::after {
 
   .subtle-button {
     @apply inline-flex items-center justify-center rounded-md px-5 py-2.5 text-sm font-medium text-slate-200 transition-all duration-150;
-    background: var(--surface);
-    border: 1px solid var(--border-hover);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+    border: 1px solid rgba(255, 255, 255, 0.16);
   }
 
   .subtle-button:hover {
@@ -138,20 +163,20 @@ body::after {
 
   .neon-tag {
     @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-medium mono-label;
-    background: rgba(34, 211, 238, 0.07);
-    border: 1px solid rgba(34, 211, 238, 0.2);
-    color: #67e8f9;
+    background: rgba(246, 133, 27, 0.12);
+    border: 1px solid rgba(246, 133, 27, 0.36);
+    color: #fdba74;
   }
 
   .terminal-block {
     font-family: var(--font-ibm-plex-mono), monospace;
     font-size: 0.8125rem;
     line-height: 1.6;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(15, 19, 27, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
     padding: 1rem 1.25rem;
-    color: #94a3b8;
+    color: #cbd5e1;
   }
 }
 

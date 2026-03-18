@@ -128,9 +128,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Loading state
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="min-h-screen bg-[#0f131b] flex items-center justify-center">
                 <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin mx-auto mb-4" />
+                    <div className="w-16 h-16 border-4 border-orange-500/30 border-t-orange-400 rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-gray-400">Verifying admin access...</p>
                 </div>
             </div>
@@ -140,9 +140,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Not connected
     if (!isConnected) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="min-h-screen bg-[#0f131b] flex items-center justify-center">
                 <div className="text-center max-w-md">
-                    <div className="w-20 h-20 bg-gradient-to-br from-red-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-orange-500/25 to-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-orange-300/20">
                         <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
@@ -158,9 +158,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Not admin
     if (!isAdmin) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="min-h-screen bg-[#0f131b] flex items-center justify-center">
                 <div className="text-center max-w-md">
-                    <div className="w-20 h-20 bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-orange-500/25 to-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-orange-300/20">
                         <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                         </svg>
@@ -188,20 +188,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     // Admin Dashboard
     return (
-        <div className="min-h-screen bg-gray-950">
+        <div className="min-h-screen bg-[#0f131b]">
             {/* Admin Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 bg-gray-950/90 backdrop-blur-xl border-b border-red-500/20">
+            <header className="fixed top-0 left-0 right-0 z-50 bg-[#111722]/90 backdrop-blur-xl border-b border-orange-400/20">
                 <div className="flex items-center justify-between px-6 py-4">
                     <div className="flex items-center gap-4">
                         <Link href="/" className="flex items-center gap-2">
-                            <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center">
+                            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-[0_8px_24px_rgba(246,133,27,0.35)]">
                                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                 </svg>
                             </div>
                             <div>
-                                <span className="text-xl font-bold text-white">DocuMate</span>
-                                <span className="ml-2 px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
+                                <span className="text-xl font-bold text-white">DocuMate Ember</span>
+                                <span className="ml-2 px-2 py-0.5 bg-orange-500/20 text-orange-300 text-xs font-medium rounded-full border border-orange-400/35">
                                     ADMIN
                                 </span>
                             </div>
@@ -222,7 +222,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <div className="flex pt-[73px]">
                 {/* Sidebar */}
-                <aside className="fixed left-0 top-[73px] bottom-0 w-64 bg-gray-900/50 border-r border-gray-800/50 overflow-y-auto">
+                <aside className="fixed left-0 top-[73px] bottom-0 w-64 bg-[#141b27]/85 border-r border-white/10 overflow-y-auto backdrop-blur-xl">
                     <nav className="p-4 space-y-1">
                         {NAV_ITEMS.map((item) => {
                             const isActive = pathname === item.href || 
@@ -235,8 +235,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                     href={item.href}
                                     className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                                         isActive
-                                            ? "bg-gradient-to-r from-red-500/20 to-pink-500/20 text-white border border-red-500/30"
-                                            : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                                            ? "bg-gradient-to-r from-orange-500/25 to-amber-500/20 text-white border border-orange-300/35 shadow-[0_10px_24px_rgba(246,133,27,0.18)]"
+                                            : "text-gray-400 hover:text-white hover:bg-gray-800/50 border border-transparent hover:border-white/10"
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -244,7 +244,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                         <span className="font-medium">{item.name}</span>
                                     </div>
                                     {badgeCount > 0 && (
-                                        <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-medium rounded-full">
+                                        <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-medium rounded-full">
                                             {badgeCount}
                                         </span>
                                     )}

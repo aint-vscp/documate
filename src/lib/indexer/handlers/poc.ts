@@ -48,12 +48,9 @@ export async function handlePOCRemark(call: {
         return;
     }
 
-    console.log(`[POC Handler] Processing POC-1 remark: ${remarkString}`);
-
     // Parse the POC metadata
     const metadata = reputationService.parsePOCRemark(remarkString);
     if (!metadata) {
-        console.warn(`[POC Handler] Failed to parse POC remark: ${remarkString}`);
         return;
     }
 
@@ -72,8 +69,8 @@ export async function handlePOCRemark(call: {
 
     // Store POC transaction in database
     // await prisma.pOCTransaction.create({ data: pocTx });
+    void pocTx;
 
-    console.log(`[POC Handler] Indexed POC transaction: ${pocTx.hash}`);
 }
 
 /**
@@ -92,10 +89,9 @@ export async function handleTransfer(event: {
     };
     extrinsicHash: string;
 }): Promise<void> {
+    void event;
     // Look for corresponding POC remark in same extrinsic
     // This would correlate the payment with the contract reference
-
-    console.log(`[Transfer Handler] Processing transfer: ${event.data.from} -> ${event.data.to}`);
 
     // In production:
     // 1. Find POC remark in same extrinsic
@@ -128,11 +124,9 @@ export async function processPOCTransaction(
     // Derive reputation tags
     const tags = reputationService.deriveTagsFromPOC(pocTx);
 
-    console.log(`[POC Processor] Derived ${tags.length} tags from POC transaction`);
-
     // Store tags in database
     for (const tag of tags) {
         // await prisma.reputationTag.create({ data: tag });
-        console.log(`[POC Processor] Created tag: ${tag.tag} for user ${tag.userId}`);
+        void tag;
     }
 }

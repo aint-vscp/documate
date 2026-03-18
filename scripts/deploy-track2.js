@@ -12,6 +12,7 @@ async function main() {
   const treasuryAddress = process.env.TREASURY_ADDRESS || deployer.address;
   const burnAddress = process.env.BURN_ADDRESS || "0x000000000000000000000000000000000000dEaD";
   const identityPrecompile = process.env.IDENTITY_PRECOMPILE || "0x0000000000000000000000000000000000000818";
+  const useMockVerification = String(process.env.USE_MOCK_VERIFICATION || "false").toLowerCase() === "true";
 
   console.log("Deploying with:");
   console.log(`  Deployer:  ${deployer.address}`);
@@ -27,12 +28,20 @@ async function main() {
   const marketplace = await Marketplace.deploy(treasuryAddress, burnAddress, identityPrecompile);
   await marketplace.waitForDeployment();
 
+  if (useMockVerification) {
+    const tx = await marketplace.setUseMockVerification(true);
+    await tx.wait();
+    const verifyTx = await marketplace.setMockVerified(deployer.address, true);
+    await verifyTx.wait();
+  }
+
   console.log("\nDeployment complete:");
   console.log(`  DocuMateStaking:    ${await staking.getAddress()}`);
   console.log(`  DocuMateMarketplace:${await marketplace.getAddress()}`);
+  console.log(`  Mock verification:  ${useMockVerification ? "ENABLED" : "DISABLED"}`);
 
   console.log("\nPost-deploy testnet checklist:");
-  console.log("  1. Disable mock verification: setUseMockVerification(false)");
+  console.log("  1. Confirm identity precompile responses for verified wallets");
   console.log("  2. Verify Identity precompile address for your runtime");
   console.log("  3. Configure STAKING_CONTRACT_ADDRESS and MARKETPLACE_CONTRACT_ADDRESS in backend env");
 }

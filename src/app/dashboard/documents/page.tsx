@@ -8,8 +8,12 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useEVMWallet } from "@/hooks/useEVMWallet";
-import { getAllDocuments, getDocumentStats } from "@/lib/document";
+import { getAllDocuments, getDocumentStats, getSharedDocuments } from "@/lib/document";
 import type { DocumentInstance, DocumentStatus } from "@/types";
+
+function normalizeAddress(address: string | null | undefined): string {
+    return (address || "").trim().toLowerCase();
+}
 
 const STATUS_COLORS: Record<DocumentStatus, { bg: string; text: string }> = {
     DRAFT: { bg: "bg-gray-500/20", text: "text-gray-400" },
@@ -43,22 +47,53 @@ export default function DocumentsPage() {
     });
 
     useEffect(() => {
-        // Load documents
-        const allDocs = getAllDocuments();
-        setDocuments(allDocs);
+        let isMounted = true;
 
-        // Load stats
-        if (account) {
+        const loadDocuments = async () => {
+            if (!account) {
+                if (!isMounted) return;
+                setDocuments([]);
+                setStats({
+                    total: 0,
+                    drafts: 0,
+                    pending: 0,
+                    finalized: 0,
+                    sent: 0,
+                    received: 0,
+                });
+                return;
+            }
+
+            try {
+                const allDocs = await getSharedDocuments(account);
+                if (!isMounted) return;
+                setDocuments(allDocs);
+            } catch {
+                if (!isMounted) return;
+                setDocuments(getAllDocuments());
+            }
+
+            if (!isMounted) return;
             setStats(getDocumentStats(account));
-        }
+        };
+
+        loadDocuments();
+
+        return () => {
+            isMounted = false;
+        };
     }, [account]);
 
     const filteredDocuments = documents.filter((doc) => {
         if (!account) return false;
 
+        const normalizedAccount = normalizeAddress(account);
+        const normalizedSender = normalizeAddress(doc.sender);
+        const normalizedReceiver = normalizeAddress(doc.receiver);
+
         const isUserDoc =
-            doc.sender === account ||
-            doc.receiver === account;
+            normalizedSender === normalizedAccount ||
+            normalizedReceiver === normalizedAccount;
 
         if (!isUserDoc) return false;
 
@@ -66,9 +101,9 @@ export default function DocumentsPage() {
             case "all":
                 return true;
             case "sent":
-                return doc.sender === account;
+                return normalizedSender === normalizedAccount;
             case "received":
-                return doc.receiver === account;
+                return normalizedReceiver === normalizedAccount;
             default:
                 return doc.status === filter;
         }
@@ -114,7 +149,7 @@ export default function DocumentsPage() {
                 </div>
                 <Link
                     href="/dashboard/documents/new"
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-colors flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-medium transition-colors flex items-center gap-2"
                 >
                     <svg
                         className="w-5 h-5"
@@ -157,7 +192,7 @@ export default function DocumentsPage() {
                         key={key}
                         onClick={() => setFilter(key)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${filter === key
-                                ? "bg-purple-600 text-white"
+                                ? "bg-amber-500 text-white"
                                 : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
                             }`}
                     >
@@ -192,7 +227,7 @@ export default function DocumentsPage() {
                     </p>
                     <Link
                         href="/dashboard/documents/new"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors"
                     >
                         <svg
                             className="w-4 h-4"
@@ -235,7 +270,7 @@ function StatCard({
     color: "purple" | "gray" | "yellow" | "green";
 }) {
     const colors = {
-        purple: "from-purple-500/20 to-pink-500/20 border-purple-500/30",
+        purple: "from-amber-500/20 to-orange-500/20 border-amber-500/30",
         gray: "from-gray-500/20 to-gray-600/20 border-gray-500/30",
         yellow: "from-yellow-500/20 to-orange-500/20 border-yellow-500/30",
         green: "from-green-500/20 to-emerald-500/20 border-green-500/30",
@@ -258,13 +293,13 @@ function DocumentCard({
     document: DocumentInstance;
     currentUserAddress: string;
 }) {
-    const isSender = document.sender === currentUserAddress;
+    const isSender = document.sender.toLowerCase() === currentUserAddress.toLowerCase();
     const statusStyle = STATUS_COLORS[document.status];
 
     return (
         <Link
             href={`/dashboard/documents/${document.id}`}
-            className="block bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur rounded-xl border border-gray-700/50 hover:border-purple-500/50 transition-all p-4"
+            className="block bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur rounded-xl border border-gray-700/50 hover:border-amber-500/50 transition-all p-4"
         >
             <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">

@@ -23,8 +23,8 @@ const winReasons = [
 
 const archItems = [
   { label: "Identity",   value: "DID Verification",    color: "text-cyan-300" },
-  { label: "Economics",  value: "Immutable Split",      color: "text-purple-300" },
-  { label: "Validation", value: "Cryptographic Tiering",color: "text-pink-300" },
+  { label: "Economics",  value: "Immutable Split",      color: "text-amber-300" },
+  { label: "Validation", value: "Cryptographic Tiering",color: "text-orange-300" },
   { label: "Reputation", value: "Staking + Slashing",   color: "text-green-300" },
 ];
 
@@ -46,10 +46,10 @@ export default function HomePage() {
   return (
     <div className="relative min-h-screen">
       {/* ambient top glow */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-96 bg-gradient-to-b from-cyan-500/[0.055] to-transparent z-0" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-96 bg-gradient-to-b from-orange-500/[0.07] to-transparent z-0" />
 
       {/* nav */}
-      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
+      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.08] bg-[#131a26]/88 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
@@ -87,7 +87,7 @@ export default function HomePage() {
               <p className="mono-label text-[10px] text-white/25 tracking-widest">Polkadot Solidity Hackathon · 2026</p>
               <h1 className="mt-4 text-5xl font-bold leading-tight text-white md:text-6xl lg:text-7xl">
                 End Fraud with<br />
-                <span className="gradient-text glow-cyan">Verifiable</span><br />
+                <span className="gradient-text">Verifiable</span><br />
                 <span className="gradient-text">Contracts.</span>
               </h1>
               <p className="mt-5 max-w-xl text-base leading-7 text-white/45">

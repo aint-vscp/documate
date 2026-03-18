@@ -33,8 +33,10 @@ interface EVMWalletState {
     error: string | null;
 
     connectMetaMask: () => Promise<void>;
+    switchToTargetNetwork: () => Promise<void>;
     disconnect: () => void;
     clearError: () => void;
+    restoreSession: () => Promise<void>;
 }
 
 // ============================================================
@@ -68,6 +70,31 @@ function mapProviderError(error: unknown): string {
     }
 
     return err?.message || "Failed to connect MetaMask.";
+}
+
+const WALLET_COOKIE_KEY = "documate_evm_wallet";
+const CHAIN_COOKIE_KEY = "documate_evm_chain";
+
+function setCookie(name: string, value: string, maxAgeSeconds = 60 * 60 * 24 * 30): void {
+    if (typeof document === "undefined") return;
+    document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function clearCookie(name: string): void {
+    if (typeof document === "undefined") return;
+    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+function readCookie(name: string): string | null {
+    if (typeof document === "undefined") return null;
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    for (const cookie of cookies) {
+        const [rawName, ...rest] = cookie.trim().split("=");
+        if (rawName === name) {
+            return decodeURIComponent(rest.join("="));
+        }
+    }
+    return null;
 }
 
 async function switchToPolkadotHub(provider: EthereumProvider): Promise<void> {
@@ -153,6 +180,9 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
                 isConnecting: false,
             });
 
+            setCookie(WALLET_COOKIE_KEY, accounts[0]);
+            setCookie(CHAIN_COOKIE_KEY, String(chainId));
+
             // Remove previous listeners if we previously bound a provider.
             if (boundProvider && accountsChangedHandler && boundProvider.removeListener) {
                 boundProvider.removeListener("accountsChanged", accountsChangedHandler);
@@ -169,15 +199,20 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
                         isConnected: false,
                         chainId: null,
                     });
+                    clearCookie(WALLET_COOKIE_KEY);
+                    clearCookie(CHAIN_COOKIE_KEY);
                 } else {
                     set({ account: newAccounts[0] });
+                    setCookie(WALLET_COOKIE_KEY, newAccounts[0]);
                 }
             };
 
             chainChangedHandler = (...args: never[]) => {
                 const newChainId = args[0] as string;
                 if (typeof newChainId === "string") {
-                    set({ chainId: parseInt(newChainId, 16) });
+                    const parsed = parseInt(newChainId, 16);
+                    set({ chainId: parsed });
+                    setCookie(CHAIN_COOKIE_KEY, String(parsed));
                 }
             };
 
@@ -191,6 +226,24 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
                 isConnecting: false,
                 isConnected: false,
             });
+        }
+    },
+
+    switchToTargetNetwork: async () => {
+        const provider = getMetaMaskProvider();
+        if (!provider) {
+            set({ error: "MetaMask not detected. Please install MetaMask to continue." });
+            return;
+        }
+
+        try {
+            await switchToPolkadotHub(provider);
+            const chainIdHex = await provider.request({ method: "eth_chainId" }) as string;
+            const chainId = parseInt(chainIdHex, 16);
+            set({ chainId, error: null });
+            setCookie(CHAIN_COOKIE_KEY, String(chainId));
+        } catch (err) {
+            set({ error: mapProviderError(err) });
         }
     },
 
@@ -214,12 +267,60 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
             isConnecting: false,
             error: null,
         });
+
+        clearCookie(WALLET_COOKIE_KEY);
+        clearCookie(CHAIN_COOKIE_KEY);
     },
 
     clearError: () => {
         set({ error: null });
     },
+
+    restoreSession: async () => {
+        if (typeof window === "undefined") return;
+
+        const provider = getMetaMaskProvider();
+        if (!provider) return;
+
+        const cookieWallet = readCookie(WALLET_COOKIE_KEY);
+
+        try {
+            const accounts = await provider.request({ method: "eth_accounts" }) as string[];
+            if (!accounts || accounts.length === 0) {
+                set({ account: null, chainId: null, isConnected: false });
+                clearCookie(WALLET_COOKIE_KEY);
+                clearCookie(CHAIN_COOKIE_KEY);
+                return;
+            }
+
+            const account = cookieWallet
+                ? accounts.find((entry) => entry.toLowerCase() === cookieWallet.toLowerCase()) ?? accounts[0]
+                : accounts[0];
+
+            const chainIdHex = await provider.request({ method: "eth_chainId" }) as string;
+            const chainId = parseInt(chainIdHex, 16);
+
+            set({
+                account,
+                chainId,
+                isConnected: true,
+                isConnecting: false,
+                error: null,
+            });
+
+            setCookie(WALLET_COOKIE_KEY, account);
+            setCookie(CHAIN_COOKIE_KEY, String(chainId));
+        } catch {
+            set({ account: null, chainId: null, isConnected: false });
+        }
+    },
 }));
+
+if (typeof window !== "undefined") {
+    queueMicrotask(() => {
+        void useEVMWallet.getState().restoreSession();
+    });
+}
 
 // ============================================================
 // Selector Hooks

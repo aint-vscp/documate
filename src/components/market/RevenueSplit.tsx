@@ -81,7 +81,7 @@ export function RevenueSplit({
         return (
             <div className={`bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 ${className}`}>
                 <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
                     Revenue Split
@@ -95,7 +95,7 @@ export function RevenueSplit({
                         title={`Creator: ${REVENUE_SPLIT.CREATOR}%`}
                     />
                     <div
-                        className="bg-gradient-to-r from-pink-500 to-purple-600"
+                        className="bg-gradient-to-r from-orange-500 to-amber-500"
                         style={{ width: `${REVENUE_SPLIT.COMPANY}%` }}
                         title={`DocuMate: ${REVENUE_SPLIT.COMPANY}%`}
                     />
@@ -123,7 +123,7 @@ export function RevenueSplit({
                     {/* Company Share */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-pink-500 to-purple-600" />
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-500 to-amber-500" />
                             <span className="text-sm text-gray-300">Platform Fee</span>
                             <span className="text-xs text-gray-500">({REVENUE_SPLIT.COMPANY}%)</span>
                         </div>
@@ -159,7 +159,7 @@ export function RevenueSplit({
         <div className={`${className}`}>
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl hover:border-pink-500/30 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl hover:border-orange-500/30 transition-colors"
             >
                 <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-green-500/20">
@@ -234,7 +234,7 @@ export function EarningsCalculator({
     return (
         <div className={`bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-2xl p-6 ${className}`}>
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
                 Earnings Calculator
@@ -250,7 +250,7 @@ export function EarningsCalculator({
                         onChange={(e) => handlePriceChange(Number(e.target.value))}
                         min={1}
                         step={5}
-                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-xl font-semibold focus:outline-none focus:border-pink-500 transition-colors"
+                        className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white text-xl font-semibold focus:outline-none focus:border-orange-500 transition-colors"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">$DOCU</span>
                 </div>
@@ -264,7 +264,7 @@ export function EarningsCalculator({
                         onClick={() => handlePriceChange(p)}
                         className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                             price === p
-                                ? "bg-pink-500 text-white"
+                                ? "bg-orange-500 text-white"
                                 : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
                         }`}
                     >

@@ -88,7 +88,7 @@ const STATUS_CONFIG: Record<BreachStatus, { bg: string; text: string; label: str
     INVESTIGATING: { bg: "bg-blue-500/20", text: "text-blue-400", label: "Investigating" },
     CONFIRMED: { bg: "bg-red-500/20", text: "text-red-400", label: "Confirmed" },
     DISMISSED: { bg: "bg-gray-500/20", text: "text-gray-400", label: "Dismissed" },
-    APPEALED: { bg: "bg-purple-500/20", text: "text-purple-400", label: "Appealed" },
+    APPEALED: { bg: "bg-amber-500/20", text: "text-amber-400", label: "Appealed" },
 };
 
 const SEVERITY_CONFIG: Record<BreachSeverity, { bg: string; text: string }> = {
@@ -311,7 +311,7 @@ export default function BreachManagementPage() {
                         onClick={() => setFilterStatus(status)}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                             filterStatus === status
-                                ? "bg-gradient-to-r from-red-500 to-pink-600 text-white"
+                                ? "bg-gradient-to-r from-red-500 to-orange-600 text-white"
                                 : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
                         }`}
                     >
@@ -436,7 +436,7 @@ export default function BreachManagementPage() {
                                                             href={`https://ipfs.io/ipfs/${breach.evidence}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="flex items-center gap-2 mt-1 text-pink-400 hover:text-pink-300 text-sm"
+                                                            className="flex items-center gap-2 mt-1 text-orange-400 hover:text-orange-300 text-sm"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -501,7 +501,7 @@ export default function BreachManagementPage() {
                                                 <button
                                                     onClick={handleConfirmBreach}
                                                     disabled={isProcessing || !resolution.trim()}
-                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                                                 >
                                                     {isProcessing ? (
                                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

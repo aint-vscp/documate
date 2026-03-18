@@ -50,7 +50,7 @@ export function DocumentEditor({
                         </span>
                         <button
                             onClick={() => window.print()}
-                            className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                            className="text-xs text-amber-500 hover:text-amber-600 flex items-center gap-1"
                         >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"

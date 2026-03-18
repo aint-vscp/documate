@@ -27,7 +27,11 @@ interface MarketTemplate {
     _count?: {
         purchases: number;
     };
+    isCreator?: boolean;
+    alreadyOwned?: boolean;
 }
+
+type TxPhase = "idle" | "submitting" | "confirming" | "recording" | "confirmed" | "failed";
 
 // Fallback templates shown when the DB is empty (for first-run experience)
 const FALLBACK_TEMPLATES: MarketTemplate[] = [
@@ -120,14 +124,14 @@ const categories: (TemplateCategory | "All")[] = [
 
 const categoryColors: Record<TemplateCategory, string> = {
     Legal: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    Creative: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+    Creative: "bg-orange-500/20 text-orange-300 border-orange-500/30",
     Engineering: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
 };
 
 export default function MarketPage() {
     const isConnected = useIsEVMConnected();
     const account = useEVMAccount();
-    const { executeTransaction } = useDocuMateContract();
+    const { executeTransaction, checkVerified } = useDocuMateContract();
     const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | "All">("All");
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -157,6 +161,7 @@ export default function MarketPage() {
             const params = new URLSearchParams();
             if (selectedCategory !== "All") params.set("category", selectedCategory);
             if (debouncedSearch) params.set("search", debouncedSearch);
+            if (account) params.set("buyerAddress", account);
 
             const response = await fetch(`/api/market/templates?${params}`);
             const data = await response.json();
@@ -173,7 +178,7 @@ export default function MarketPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedCategory, debouncedSearch]);
+    }, [selectedCategory, debouncedSearch, account]);
 
     useEffect(() => {
         fetchTemplates();
@@ -191,25 +196,78 @@ export default function MarketPage() {
     });
 
     const [txStatus, setTxStatus] = useState<string | null>(null);
+    const [txPhase, setTxPhase] = useState<TxPhase>("idle");
+    const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+
+    const isOwnTemplate = useCallback(
+        (template: MarketTemplate) => {
+            if (!account || !template.creator?.walletAddress) return false;
+            return template.creator.walletAddress.toLowerCase() === account.toLowerCase();
+        },
+        [account]
+    );
+
+    const isAlreadyOwnedTemplate = useCallback((template: MarketTemplate) => {
+        return Boolean(template.alreadyOwned);
+    }, []);
 
     const handlePurchase = async (template: MarketTemplate) => {
         if (!account) return;
 
+        if (isOwnTemplate(template) || template.isCreator) {
+            setPurchaseResult({
+                success: false,
+                message: "You cannot buy your own template NFT.",
+            });
+            return;
+        }
+
+        if (isAlreadyOwnedTemplate(template)) {
+            setPurchaseResult({
+                success: false,
+                message: "You already own this template NFT.",
+            });
+            return;
+        }
+
+        if (!template.creator?.walletAddress) {
+            setPurchaseResult({
+                success: false,
+                message: "Template creator wallet is unavailable. This listing cannot be purchased right now.",
+            });
+            return;
+        }
+
         setIsPurchasing(true);
         setPurchaseResult(null);
         setTxStatus(null);
+        setTxPhase("idle");
+        setLastTxHash(null);
 
         try {
+            const isVerified = await checkVerified(account);
+            if (!isVerified) {
+                setPurchaseResult({
+                    success: false,
+                    message: "Wallet DID is not verified for marketplace transactions yet. Please complete verification first.",
+                });
+                return;
+            }
+
             // Step 1: Execute on-chain 75/20/5 split transaction
-            const creatorAddress = template.creator?.walletAddress || account;
+            const creatorAddress = template.creator.walletAddress;
             const pasAmount = (template.price / 1000).toString(); // Convert price to PAS (e.g. 50 DOCU = 0.05 PAS)
 
-            setTxStatus("Executing on-chain transaction...");
+            setTxPhase("submitting");
+            setTxStatus("Submitting wallet transaction...");
             const receipt = await executeTransaction(creatorAddress, pasAmount);
             const txHash = receipt?.hash || "";
-            setTxStatus(null);
+            setLastTxHash(txHash || null);
+            setTxPhase("confirming");
+            setTxStatus("Transaction confirmed on-chain. Recording purchase...");
 
             // Step 2: Record purchase in database
+            setTxPhase("recording");
             const response = await fetch("/api/market/purchase", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -223,12 +281,15 @@ export default function MarketPage() {
             const data = await response.json();
 
             if (data.success) {
+                setTxPhase("confirmed");
                 setPurchaseResult({
                     success: true,
                     message: `Successfully purchased "${template.title}"! On-chain TX: ${txHash.slice(0, 10)}... Revenue split: 75% Creator, 20% Treasury, 5% Staking.`,
                 });
+                setTxStatus("Purchase finalized and synced.");
                 fetchTemplates();
             } else {
+                setTxPhase("failed");
                 setPurchaseResult({
                     success: false,
                     message: data.error || "Purchase failed",
@@ -236,6 +297,7 @@ export default function MarketPage() {
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : "Transaction failed";
+            setTxPhase("failed");
             setPurchaseResult({
                 success: false,
                 message: message.includes("user rejected") ? "Transaction cancelled by user." : message,
@@ -269,7 +331,7 @@ export default function MarketPage() {
                     </div>
                     <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
                         <p className="mono-label text-[11px] text-slate-400">Settlement Rule</p>
-                        <p className="mt-1 text-sm text-pink-300 font-medium">75 / 20 / 5</p>
+                        <p className="mt-1 text-sm text-orange-300 font-medium">75 / 20 / 5</p>
                     </div>
                 </div>
             </section>
@@ -284,7 +346,7 @@ export default function MarketPage() {
                 </div>
                 <Link
                     href="/dashboard/studio"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-opacity font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity font-medium"
                 >
                     <svg
                         className="w-5 h-5"
@@ -314,7 +376,7 @@ export default function MarketPage() {
                         <span className="text-gray-300 text-sm">75% Creator</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-pink-500" />
+                        <div className="w-3 h-3 rounded-full bg-orange-500" />
                         <span className="text-gray-300 text-sm">20% Treasury</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -333,7 +395,7 @@ export default function MarketPage() {
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
                             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${selectedCategory === cat
-                                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+                                    ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white"
                                     : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
                                 }`}
                         >
@@ -363,7 +425,7 @@ export default function MarketPage() {
                             placeholder="Search templates..."
                             value={searchQuery}
                             onChange={(e) => handleSearchChange(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
+                            className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
                         />
                     </div>
                 </div>
@@ -372,7 +434,7 @@ export default function MarketPage() {
             {/* Loading State */}
             {isLoading && (
                 <div className="flex items-center justify-center py-12">
-                    <div className="w-8 h-8 border-2 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
                 </div>
             )}
 
@@ -382,7 +444,7 @@ export default function MarketPage() {
                     {filteredTemplates.map((template) => (
                         <div
                             key={template.id}
-                            className="group surface-card overflow-hidden hover:border-pink-500/30 transition-all duration-300"
+                            className="group surface-card overflow-hidden hover:border-orange-500/30 transition-all duration-300"
                         >
                             {/* Preview Header */}
                             <div className="h-32 bg-gradient-to-br from-gray-700/50 to-gray-800/50 flex items-center justify-center relative">
@@ -418,7 +480,7 @@ export default function MarketPage() {
 
                             {/* Content */}
                             <div className="p-5">
-                                <h3 className="text-white font-semibold mb-2 group-hover:text-pink-400 transition-colors">
+                                <h3 className="text-white font-semibold mb-2 group-hover:text-orange-400 transition-colors">
                                     {template.title}
                                 </h3>
                                 <p className="text-gray-400 text-sm line-clamp-2 mb-4">
@@ -435,7 +497,7 @@ export default function MarketPage() {
                                 {/* Creator & Price */}
                                 <div className="flex items-center justify-between pt-4 border-t border-gray-700/50">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full" />
+                                        <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full" />
                                         <span className="text-gray-500 text-xs">
                                             {template.creator
                                                 ? truncateAddress(template.creator.walletAddress)
@@ -445,7 +507,7 @@ export default function MarketPage() {
                                     <div className="text-right">
                                         <p className="text-white font-bold">
                                             {template.price}{" "}
-                                            <span className="text-pink-400 text-sm">$DOCU</span>
+                                            <span className="text-orange-400 text-sm">$DOCU</span>
                                         </p>
                                         <p className="text-gray-500 text-xs">
                                             {template.royaltyPercent}% royalty
@@ -455,12 +517,28 @@ export default function MarketPage() {
 
                                 {/* Buy Button */}
                                 {isConnected ? (
-                                    <button
-                                        onClick={() => setPurchaseTarget(template)}
-                                        className="w-full mt-4 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-600 transition-all font-medium"
-                                    >
-                                        Buy License
-                                    </button>
+                                    isOwnTemplate(template) || template.isCreator ? (
+                                        <button
+                                            disabled
+                                            className="w-full mt-4 py-2.5 bg-gray-800/70 text-gray-500 rounded-xl cursor-not-allowed font-medium"
+                                        >
+                                            Your Template
+                                        </button>
+                                    ) : isAlreadyOwnedTemplate(template) ? (
+                                        <button
+                                            disabled
+                                            className="w-full mt-4 py-2.5 bg-gray-800/70 text-gray-500 rounded-xl cursor-not-allowed font-medium"
+                                        >
+                                            Already Owned
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setPurchaseTarget(template)}
+                                            className="w-full mt-4 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-amber-500 transition-all font-medium"
+                                        >
+                                            Buy License
+                                        </button>
+                                    )
                                 ) : (
                                     <p className="text-center text-gray-500 text-sm mt-4">
                                         Connect wallet to purchase
@@ -518,7 +596,7 @@ export default function MarketPage() {
                                     </span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-pink-400">Treasury (20%)</span>
+                                    <span className="text-orange-400">Treasury (20%)</span>
                                     <span className="text-gray-300">
                                         {(purchaseTarget.price * 0.2).toFixed(2)} $DOCU
                                     </span>
@@ -544,18 +622,35 @@ export default function MarketPage() {
                             </div>
                         )}
 
+                        {(txStatus || lastTxHash) && (
+                            <div className="mb-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-cyan-200">
+                                {txStatus && <p>{txStatus}</p>}
+                                {lastTxHash && (
+                                    <a
+                                        href={`https://blockscout-testnet.polkadot.io/tx/${lastTxHash}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mt-1 inline-block text-cyan-300 underline decoration-dotted underline-offset-4 hover:text-cyan-200"
+                                    >
+                                        View transaction on Blockscout
+                                    </a>
+                                )}
+                            </div>
+                        )}
+
                         {/* Actions */}
                         <div className="flex gap-3">
                             {!purchaseResult?.success && (
                                 <button
                                     onClick={() => handlePurchase(purchaseTarget)}
                                     disabled={isPurchasing}
-                                    className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {isPurchasing ? (
                                         <>
                                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                             {txStatus && <span className="text-sm">{txStatus}</span>}
+                                            {!txStatus && txPhase !== "idle" && <span className="text-sm">Processing...</span>}
                                         </>
                                     ) : (
                                         "Confirm Purchase"

@@ -7,11 +7,14 @@
 
 import React, { useState } from "react";
 import type { DocumentInstance } from "@/types";
+import { loadUserProfile } from "@/lib/polkadot/kilt";
+import { loadReusableEncryptedSignature } from "@/lib/document";
+import { saveReusableEncryptedSignature } from "@/lib/document";
 
 interface SignaturePanelProps {
     document: DocumentInstance;
     currentUserAddress: string;
-    onSign: () => Promise<void>;
+    onSign: (signatureDataUrl?: string) => Promise<void>;
     onSend?: () => Promise<void>;
     onReject?: () => Promise<void>;
     isLoading?: boolean;
@@ -26,9 +29,71 @@ export function SignaturePanel({
     isLoading = false,
 }: SignaturePanelProps) {
     const [isProcessing, setIsProcessing] = useState(false);
+    const [savedSignature, setSavedSignature] = useState<string | null>(null);
+    const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+    const [signError, setSignError] = useState<string | null>(null);
+    const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+    const drawingRef = React.useRef(false);
+    const lastPointRef = React.useRef<{ x: number; y: number } | null>(null);
 
-    const isSender = document.sender === currentUserAddress;
-    const isReceiver = document.receiver === currentUserAddress;
+    const setupCanvasContext = React.useCallback(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const rect = canvas.getBoundingClientRect();
+        const targetWidth = Math.max(1, Math.round(rect.width * dpr));
+        const targetHeight = Math.max(1, Math.round(rect.height * dpr));
+
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+            const snapshot = canvas.toDataURL("image/png");
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, rect.width, rect.height);
+            };
+            img.src = snapshot;
+        } else {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#f8fafc";
+    }, []);
+
+    React.useEffect(() => {
+        if (!currentUserAddress) return;
+
+        const canSignNow =
+            (document.status === "PENDING_SENDER_SIGN" && document.sender === currentUserAddress) ||
+            (document.status === "PENDING_RECEIVER_SIGN" && document.receiver === currentUserAddress);
+
+        if (!canSignNow) return;
+
+        const profile = loadUserProfile();
+        loadReusableEncryptedSignature(currentUserAddress, profile?.did).then((sig) => {
+            setSavedSignature(sig);
+        });
+    }, [currentUserAddress, document.receiver, document.sender, document.status]);
+
+    React.useEffect(() => {
+        setupCanvasContext();
+        const onResize = () => setupCanvasContext();
+        window.addEventListener("resize", onResize);
+        return () => {
+            window.removeEventListener("resize", onResize);
+        };
+    }, [setupCanvasContext]);
+
+    const isSender = document.sender?.toLowerCase() === currentUserAddress?.toLowerCase();
+    const isReceiver = document.receiver?.toLowerCase() === currentUserAddress?.toLowerCase();
 
     const handleAction = async (action: () => Promise<void>) => {
         setIsProcessing(true);
@@ -38,6 +103,100 @@ export function SignaturePanel({
             console.error("Action failed:", error);
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return null;
+        const rect = canvas.getBoundingClientRect();
+
+        return {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+        };
+    };
+
+    const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        setupCanvasContext();
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const point = getCanvasPoint(event);
+        if (!point) return;
+
+        canvas.setPointerCapture(event.pointerId);
+        drawingRef.current = true;
+        lastPointRef.current = point;
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+        setSignError(null);
+    };
+
+    const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+        if (!drawingRef.current) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const currentPoint = getCanvasPoint(event);
+        if (!currentPoint) return;
+
+        const previousPoint = lastPointRef.current ?? currentPoint;
+
+        // Weighted smoothing to remove mouse jitter while keeping pen accuracy.
+        const smoothedPoint = {
+            x: previousPoint.x * 0.65 + currentPoint.x * 0.35,
+            y: previousPoint.y * 0.65 + currentPoint.y * 0.35,
+        };
+
+        const midPoint = {
+            x: (previousPoint.x + smoothedPoint.x) / 2,
+            y: (previousPoint.y + smoothedPoint.y) / 2,
+        };
+
+        ctx.quadraticCurveTo(previousPoint.x, previousPoint.y, midPoint.x, midPoint.y);
+        ctx.stroke();
+        lastPointRef.current = smoothedPoint;
+    };
+
+    const stopDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            canvas.releasePointerCapture(event.pointerId);
+        }
+        drawingRef.current = false;
+        lastPointRef.current = null;
+    };
+
+    const clearSignature = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        setSignatureDataUrl(null);
+        lastPointRef.current = null;
+    };
+
+    const saveCurrentSignature = async () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const dataUrl = canvas.toDataURL("image/png");
+        setSignatureDataUrl(dataUrl);
+
+        try {
+            const profile = loadUserProfile();
+            await saveReusableEncryptedSignature(currentUserAddress, dataUrl, profile?.did);
+            setSavedSignature(dataUrl);
+            setSignError(null);
+        } catch {
+            setSignError("Failed to save encrypted signature profile. Please try again.");
         }
     };
 
@@ -265,30 +424,146 @@ export function SignaturePanel({
                     <button
                         onClick={() => handleAction(onSend!)}
                         disabled={isProcessing}
-                        className="w-full py-3 px-4 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isProcessing ? "Sending..." : "Send for Signature"}
                     </button>
                 )}
 
                 {canSenderSign && (
-                    <button
-                        onClick={() => handleAction(onSign)}
-                        disabled={isProcessing}
-                        className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isProcessing ? "Signing..." : "Sign as Sender"}
-                    </button>
+                    <>
+                        <div className="rounded-lg border border-gray-700/70 bg-gray-900/60 p-3 space-y-2">
+                            <p className="text-xs text-gray-400">Draw signature (mouse/touch)</p>
+                            <canvas
+                                ref={canvasRef}
+                                onPointerDown={startDrawing}
+                                onPointerMove={draw}
+                                onPointerUp={stopDrawing}
+                                onPointerCancel={stopDrawing}
+                                onPointerLeave={stopDrawing}
+                                className="w-full h-28 rounded-md border border-gray-700 bg-black/50 touch-none"
+                            />
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={clearSignature}
+                                    type="button"
+                                    className="flex-1 py-2 text-xs rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800/70"
+                                >
+                                    Clear
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        void saveCurrentSignature();
+                                    }}
+                                    type="button"
+                                    className="flex-1 py-2 text-xs rounded-md bg-cyan-500 text-black font-semibold hover:bg-cyan-400"
+                                >
+                                    Save Signature
+                                </button>
+                                {savedSignature && (
+                                    <button
+                                        onClick={() => {
+                                            setSignatureDataUrl(savedSignature);
+                                            setSignError(null);
+                                        }}
+                                        type="button"
+                                        className="flex-1 py-2 text-xs rounded-md border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+                                    >
+                                        Use Saved
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-gray-500">
+                                Your saved signature is encrypted and tied to your wallet/DID for reuse.
+                            </p>
+                        </div>
+
+                        {signError && (
+                            <p className="text-xs text-red-400">{signError}</p>
+                        )}
+
+                        <button
+                            onClick={() => {
+                                const selectedSignature = signatureDataUrl || savedSignature;
+                                if (!selectedSignature) {
+                                    setSignError("Please draw and save a signature (or use your saved one) before signing.");
+                                    return;
+                                }
+                                void handleAction(() => onSign(selectedSignature));
+                            }}
+                            disabled={isProcessing}
+                            className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isProcessing ? "Signing & Anchoring..." : "Sign + Pay & Anchor On-Chain"}
+                        </button>
+                    </>
                 )}
 
                 {canReceiverSign && (
                     <>
+                        <div className="rounded-lg border border-gray-700/70 bg-gray-900/60 p-3 space-y-2">
+                            <p className="text-xs text-gray-400">Draw signature (mouse/touch)</p>
+                            <canvas
+                                ref={canvasRef}
+                                onPointerDown={startDrawing}
+                                onPointerMove={draw}
+                                onPointerUp={stopDrawing}
+                                onPointerCancel={stopDrawing}
+                                onPointerLeave={stopDrawing}
+                                className="w-full h-28 rounded-md border border-gray-700 bg-black/50 touch-none"
+                            />
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={clearSignature}
+                                    type="button"
+                                    className="flex-1 py-2 text-xs rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800/70"
+                                >
+                                    Clear
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        void saveCurrentSignature();
+                                    }}
+                                    type="button"
+                                    className="flex-1 py-2 text-xs rounded-md bg-cyan-500 text-black font-semibold hover:bg-cyan-400"
+                                >
+                                    Save Signature
+                                </button>
+                                {savedSignature && (
+                                    <button
+                                        onClick={() => {
+                                            setSignatureDataUrl(savedSignature);
+                                            setSignError(null);
+                                        }}
+                                        type="button"
+                                        className="flex-1 py-2 text-xs rounded-md border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+                                    >
+                                        Use Saved
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-gray-500">
+                                Your saved signature is encrypted and tied to your wallet/DID for reuse.
+                            </p>
+                        </div>
+
+                        {signError && (
+                            <p className="text-xs text-red-400">{signError}</p>
+                        )}
+
                         <button
-                            onClick={() => handleAction(onSign)}
+                            onClick={() => {
+                                const selectedSignature = signatureDataUrl || savedSignature;
+                                if (!selectedSignature) {
+                                    setSignError("Please draw and save a signature (or use your saved one) before signing.");
+                                    return;
+                                }
+                                void handleAction(() => onSign(selectedSignature));
+                            }}
                             disabled={isProcessing}
                             className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isProcessing ? "Signing & Finalizing..." : "Sign & Finalize"}
+                            {isProcessing ? "Signing & Finalizing..." : "Receiver Sign & Finalize"}
                         </button>
                         {canReject && (
                             <button

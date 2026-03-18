@@ -129,9 +129,9 @@ export function DidBadge({
                                 key={idx}
                                 className="flex items-center gap-2 py-2 border-b border-gray-800 last:border-0"
                             >
-                                <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
                                     <svg
-                                        className="w-4 h-4 text-purple-400"
+                                        className="w-4 h-4 text-amber-400"
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"

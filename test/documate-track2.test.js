@@ -52,6 +52,33 @@ describe("DocuMate Track 2 Prototype", function () {
         marketplace.connect(user).mintTemplate("ipfs://template", "LEGAL", ethers.parseEther("1"))
       ).to.emit(marketplace, "TemplateMinted");
     });
+
+    it("pays the current seller on resale in purchaseTemplate", async function () {
+      const [owner, creator, buyer, treasury] = await ethers.getSigners();
+      const burn = "0x000000000000000000000000000000000000dEaD";
+
+      const Factory = await ethers.getContractFactory("DocuMateMarketplace");
+      const marketplace = await Factory.deploy(treasury.address, burn, ethers.ZeroAddress);
+      await marketplace.waitForDeployment();
+
+      await marketplace.connect(owner).setUseMockVerification(true);
+      await marketplace.connect(owner).setMockVerified(creator.address, true);
+      await marketplace.connect(owner).setMockVerified(buyer.address, true);
+
+      const price = ethers.parseEther("1");
+      await marketplace.connect(creator).mintTemplate("ipfs://template", "LEGAL", price);
+
+      const sellerAmount = (price * 75n) / 100n;
+      const treasuryAmount = (price * 20n) / 100n;
+      const burnAmount = price - sellerAmount - treasuryAmount;
+
+      await expect(() =>
+        marketplace.connect(buyer).purchaseTemplate(1, { value: price })
+      ).to.changeEtherBalances(
+        [buyer, creator, treasury, burn],
+        [price * -1n, sellerAmount, treasuryAmount, burnAmount]
+      );
+    });
   });
 
   describe("DocuMateStaking", function () {

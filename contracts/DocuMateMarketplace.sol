@@ -67,6 +67,7 @@ contract DocuMateMarketplace {
     error NotVerified();
     error ZeroAddress();
     error InvalidPrice();
+    error EmptyCid();
     error ZeroPayment();
     error TemplateNotFound();
     error NotTemplateOwner();
@@ -92,8 +93,8 @@ contract DocuMateMarketplace {
         burnAddress = _burnAddress == address(0) ? DEFAULT_BURN_ADDRESS : _burnAddress;
         identityPrecompile = _identityPrecompile == address(0) ? DEFAULT_IDENTITY_PRECOMPILE : _identityPrecompile;
 
-        // Mock mode is enabled for local tests and can be disabled on testnet/mainnet.
-        useMockVerification = true;
+        // Secure by default: use runtime identity precompile checks unless explicitly overridden.
+        useMockVerification = false;
     }
 
     function setUseMockVerification(bool enabled) external onlyOwner {
@@ -117,7 +118,7 @@ contract DocuMateMarketplace {
         string calldata category,
         uint256 price
     ) external onlyVerified returns (uint256 templateId) {
-        if (bytes(ipfsCid).length == 0) revert InvalidPrice();
+        if (bytes(ipfsCid).length == 0) revert EmptyCid();
         if (price == 0) revert InvalidPrice();
 
         templateId = nextTemplateId++;
@@ -169,10 +170,7 @@ contract DocuMateMarketplace {
         uint256 totalPrice = template.price;
         (uint256 creatorAmount, uint256 treasuryAmount, uint256 burnAmount) = _calculateSplit(totalPrice);
 
-        _safeTransfer(payable(template.creator), creatorAmount, "creator");
-        _safeTransfer(payable(treasury), treasuryAmount, "treasury");
-        _safeTransfer(payable(burnAddress), burnAmount, "burn");
-
+        // Checks-effects-interactions to minimize reentrancy exposure.
         template.owner = msg.sender;
         template.isListed = false;
         template.salesCount += 1;
@@ -181,6 +179,11 @@ contract DocuMateMarketplace {
 
         totalVolume += totalPrice;
         totalBurned += burnAmount;
+
+        // 75% share goes to the current seller.
+        _safeTransfer(payable(seller), creatorAmount, "seller");
+        _safeTransfer(payable(treasury), treasuryAmount, "treasury");
+        _safeTransfer(payable(burnAddress), burnAmount, "burn");
 
         if (msg.value > totalPrice) {
             _safeTransfer(payable(msg.sender), msg.value - totalPrice, "refund");

@@ -56,12 +56,16 @@ export const CONTRACT_METADATA = {
 
 type Network = "testnet" | "mainnet";
 
+function getConfiguredNetwork(): Network {
+    return process.env.DOCUMATE_NETWORK === "mainnet" ? "mainnet" : "testnet";
+}
+
 /**
  * Get contract address for a specific network
  */
 export function getContractAddress(
     contract: "marketplace" | "subscription" | "treasury" | "burn",
-    network: Network = process.env.NODE_ENV === "production" ? "mainnet" : "testnet"
+    network: Network = getConfiguredNetwork()
 ): string {
     const address = CONTRACTS[network][contract];
     if (!address) {
@@ -75,7 +79,7 @@ export function getContractAddress(
  */
 export function isContractDeployed(
     contract: "marketplace" | "subscription",
-    network: Network = process.env.NODE_ENV === "production" ? "mainnet" : "testnet"
+    network: Network = getConfiguredNetwork()
 ): boolean {
     return !!CONTRACTS[network][contract];
 }

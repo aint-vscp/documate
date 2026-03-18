@@ -135,16 +135,16 @@ export default function AdminDashboardPage() {
                 );
             case "purchase":
                 return (
-                    <div className="w-10 h-10 bg-pink-500/20 rounded-xl flex items-center justify-center">
-                        <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-orange-500/20 rounded-xl flex items-center justify-center">
+                        <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                     </div>
                 );
             case "mint":
                 return (
-                    <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                        <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                     </div>
@@ -212,8 +212,8 @@ export default function AdminDashboardPage() {
                 {/* Templates */}
                 <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                            <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                         </div>
@@ -226,8 +226,8 @@ export default function AdminDashboardPage() {
                 {/* Volume */}
                 <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 rounded-2xl p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-pink-500/20 rounded-xl flex items-center justify-center">
-                            <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                             </svg>
                         </div>
@@ -253,9 +253,9 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Revenue Split Reminder */}
-            <div className="bg-gradient-to-r from-pink-500/5 to-purple-500/5 border border-pink-500/20 rounded-2xl p-6">
+            <div className="bg-gradient-to-r from-orange-500/5 to-amber-500/5 border border-orange-500/20 rounded-2xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     THE IRON RULES - Revenue Split
@@ -266,7 +266,7 @@ export default function AdminDashboardPage() {
                         <span className="text-gray-400">75% Creator</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-pink-500" />
+                        <div className="w-4 h-4 rounded-full bg-orange-500" />
                         <span className="text-gray-400">20% Treasury</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -307,7 +307,7 @@ export default function AdminDashboardPage() {
                     </div>
                     <Link
                         href="/admin/logs"
-                        className="block text-center text-pink-400 hover:text-pink-300 text-sm mt-4 pt-4 border-t border-gray-700/50"
+                        className="block text-center text-orange-400 hover:text-orange-300 text-sm mt-4 pt-4 border-t border-gray-700/50"
                     >
                         View All Activity
                     </Link>
@@ -357,8 +357,8 @@ export default function AdminDashboardPage() {
                             href="/admin/templates"
                             className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 rounded-xl transition-colors"
                         >
-                            <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>

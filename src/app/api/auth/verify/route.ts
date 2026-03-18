@@ -6,9 +6,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySignedChallenge, createSession, parseSignInMessage } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { withRateLimit } from "@/lib/security/rateLimit";
 
 export async function POST(request: NextRequest) {
     try {
+        const limited = withRateLimit(request, "auth-verify", {
+            windowMs: 60_000,
+            maxRequests: 15,
+        });
+        if (limited) return limited;
+
         const body = await request.json();
         const { address, message, signature } = body;
 

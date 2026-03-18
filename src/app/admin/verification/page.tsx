@@ -82,7 +82,7 @@ const STATUS_COLORS: Record<VerificationStatus, { bg: string; text: string; labe
 
 const CATEGORY_COLORS: Record<string, string> = {
     LEGAL: "from-blue-500 to-indigo-600",
-    CREATIVE: "from-pink-500 to-purple-600",
+    CREATIVE: "from-orange-500 to-amber-500",
     ENGINEERING: "from-green-500 to-emerald-600",
 };
 
@@ -246,7 +246,7 @@ export default function VerificationQueuePage() {
                         key={status}
                         onClick={() => setFilterStatus(status)}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${filterStatus === status
-                                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+                                ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white"
                                 : "bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50"
                             }`}
                     >
@@ -272,7 +272,7 @@ export default function VerificationQueuePage() {
                         <div
                             key={request.id}
                             className={`bg-gradient-to-br from-gray-800/50 to-gray-900/50 border rounded-2xl p-6 transition-all ${selectedRequest?.id === request.id
-                                    ? "border-pink-500/50 ring-2 ring-pink-500/20"
+                                    ? "border-orange-500/50 ring-2 ring-orange-500/20"
                                     : "border-gray-700/50 hover:border-gray-600/50"
                                 }`}
                         >
@@ -325,7 +325,7 @@ export default function VerificationQueuePage() {
                                     {request.status === "PENDING" && (
                                         <button
                                             onClick={() => handleStartReview(request)}
-                                            className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+                                            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
                                         >
                                             Start Review
                                         </button>
@@ -373,7 +373,7 @@ export default function VerificationQueuePage() {
                                                 href={`https://ipfs.io/ipfs/${request.ipfsCid}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-2 mt-3 text-pink-400 hover:text-pink-300 text-sm"
+                                                className="inline-flex items-center gap-2 mt-3 text-orange-400 hover:text-orange-300 text-sm"
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -417,7 +417,7 @@ export default function VerificationQueuePage() {
                                                     value={feedback}
                                                     onChange={(e) => setFeedback(e.target.value)}
                                                     placeholder="Enter review notes or rejection reason..."
-                                                    className="w-full h-24 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:border-pink-500 focus:outline-none resize-none"
+                                                    className="w-full h-24 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:border-orange-500 focus:outline-none resize-none"
                                                 />
                                             </div>
 

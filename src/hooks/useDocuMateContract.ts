@@ -38,10 +38,33 @@ function decodeContractError(error: unknown): string {
     }
 
     if (err?.code === "CALL_EXCEPTION") {
+        const rawMessage = err?.message ?? "";
+        if (rawMessage.includes("require(false)") || rawMessage.includes("no data present")) {
+            return "Contract call reverted. Contract method/config mismatch or DID verification may be missing.";
+        }
         return "Contract call reverted. Please verify wallet DID status and contract configuration.";
     }
 
     return err?.message || "Contract transaction failed.";
+}
+
+async function contractHasSelector(contract: ethers.Contract, functionName: string): Promise<boolean> {
+    const provider = contract.runner?.provider;
+    if (!provider) return true;
+
+    let selector: string;
+    try {
+        const fragment = contract.interface.getFunction(functionName);
+        if (!fragment) return false;
+        selector = fragment.selector.slice(2).toLowerCase();
+    } catch {
+        return false;
+    }
+
+    const address = String(contract.target);
+    const code = await provider.getCode(address);
+    if (!code || code === "0x") return false;
+    return code.toLowerCase().includes(selector);
 }
 
 export function useDocuMateContract() {
@@ -73,21 +96,67 @@ export function useDocuMateContract() {
     const uploadDocument = useCallback(async (ipfsHash: string) => {
         const contract = await getWriteContract();
         if (!contract) throw new Error("Contract not available");
-        const tx = await contract.uploadDocument(ipfsHash);
-        return tx.wait();
+
+        const hasUploadDocument = await contractHasSelector(contract, "uploadDocument");
+        if (!hasUploadDocument) {
+            throw new Error("Document anchoring contract is misconfigured. uploadDocument() is not available at the configured address.");
+        }
+
+        try {
+            const tx = await contract.uploadDocument(ipfsHash);
+            return tx.wait();
+        } catch (error) {
+            throw new Error(decodeContractError(error));
+        }
+    }, [getWriteContract]);
+
+    const canUploadDocument = useCallback(async (): Promise<boolean> => {
+        const contract = await getWriteContract();
+        if (!contract) return false;
+        return contractHasSelector(contract, "uploadDocument");
     }, [getWriteContract]);
 
     const executeTransaction = useCallback(async (creatorAddress: string, amountInEther: string) => {
         const contract = await getWriteContract();
         if (!contract) throw new Error("Contract not available");
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(creatorAddress)) {
+            throw new Error("Template creator wallet is invalid or unavailable.");
+        }
+
+        const runner = contract.runner as unknown as { getAddress?: () => Promise<string> };
+        const signerAddress = typeof runner?.getAddress === "function"
+            ? (await runner.getAddress()).toLowerCase()
+            : null;
+
+        if (signerAddress && signerAddress === creatorAddress.toLowerCase()) {
+            throw new Error("You cannot buy your own template NFT.");
+        }
+
+        if (signerAddress && typeof (contract as unknown as { isVerified?: unknown }).isVerified === "function") {
+            try {
+                const verified = await contract.isVerified(signerAddress);
+                if (!verified) {
+                    throw new Error("Wallet DID is not verified for marketplace transactions yet. Please complete verification first.");
+                }
+            } catch {
+                throw new Error("Wallet DID is not verified for marketplace transactions yet. Please complete verification first.");
+            }
+        }
+
         const value = ethers.parseEther(amountInEther);
         try {
             // DocuMateMarketplace uses purchase(address); DocuMate.sol uses executeTransaction(address).
             let tx;
-            if (typeof (contract as unknown as { purchase?: unknown }).purchase === "function") {
+            const hasPurchase = await contractHasSelector(contract, "purchase");
+            const hasExecuteTransaction = await contractHasSelector(contract, "executeTransaction");
+
+            if (hasPurchase) {
                 tx = await contract.purchase(creatorAddress, { value });
-            } else {
+            } else if (hasExecuteTransaction) {
                 tx = await contract.executeTransaction(creatorAddress, { value });
+            } else {
+                throw new Error("Marketplace contract is misconfigured. Neither purchase() nor executeTransaction() exists at configured address.");
             }
             return tx.wait();
         } catch (error) {
@@ -160,6 +229,7 @@ export function useDocuMateContract() {
         getWriteContract,
         checkVerified,
         uploadDocument,
+        canUploadDocument,
         executeTransaction,
         verifyDID,
         getPlatformStats,

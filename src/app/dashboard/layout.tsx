@@ -68,6 +68,25 @@ const navItems = [
         ),
     },
     {
+        name: "People",
+        href: "/dashboard/people",
+        icon: (
+            <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5V9H2v11h5m10 0v-3a3 3 0 00-6 0v3m6 0H7m3-11a3 3 0 100 6 3 3 0 000-6zm7 1a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+            </svg>
+        ),
+    },
+    {
         name: "DocuMarket",
         href: "/dashboard/market",
         icon: (
@@ -115,12 +134,12 @@ export default function DashboardLayout({
     const pathname = usePathname();
 
     return (
-        <div className="relative min-h-screen bg-black flex">
+        <div className="relative min-h-screen bg-[#101620] flex">
             {/* Sidebar */}
-            <aside className="fixed left-0 top-0 h-full w-64 bg-black border-r border-white/[0.06] z-40">
-                <div className="px-5 py-5 border-b border-white/[0.05]">
+            <aside className="fixed left-0 top-0 h-full w-64 bg-[#111722]/95 backdrop-blur-xl border-r border-white/[0.08] z-40">
+                <div className="px-5 py-5 border-b border-white/[0.07]">
                     <Link href="/" className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-orange-300/25 bg-orange-400/10 shrink-0">
                             <Image
                                 src="/logo.png"
                                 alt="DocuMate logo"
@@ -130,7 +149,10 @@ export default function DashboardLayout({
                                 priority
                             />
                         </div>
-                        <span className="text-base font-bold gradient-text">DocuMate</span>
+                        <div>
+                            <span className="text-base font-bold gradient-text">DocuMate</span>
+                            <p className="mono-label text-[9px] text-white/30 mt-0.5">Ember Wallet Suite</p>
+                        </div>
                     </Link>
                 </div>
 
@@ -142,8 +164,8 @@ export default function DashboardLayout({
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                    ? "bg-gradient-to-r from-pink-500/20 via-orange-500/20 to-cyan-500/20 text-white border border-pink-500/40"
-                                    : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                                    ? "bg-gradient-to-r from-orange-500/25 via-amber-500/20 to-blue-500/20 text-white border border-orange-300/45 shadow-[0_8px_20px_rgba(246,133,27,0.2)]"
+                                    : "text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent hover:border-white/10"
                                     }`}
                             >
                                 {item.icon}
@@ -165,7 +187,7 @@ export default function DashboardLayout({
                 </div>
 
                 <div className="absolute bottom-5 left-3 right-3">
-                    <div className="flex items-center gap-2 rounded-md border border-white/[0.06] px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 rounded-md border border-orange-300/20 bg-orange-500/5 px-3.5 py-2.5">
                         <span className="relative flex h-1.5 w-1.5 shrink-0">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
                             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400" />
@@ -178,14 +200,14 @@ export default function DashboardLayout({
             {/* Main Content */}
             <main className="flex-1 ml-64">
                 {/* Top Bar */}
-                <header className="sticky top-0 z-30 bg-black/90 backdrop-blur-xl border-b border-white/[0.06] px-8 py-3.5">
+                <header className="sticky top-0 z-30 bg-[#111722]/90 backdrop-blur-xl border-b border-white/[0.08] px-8 py-3.5">
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-base font-semibold text-white">
                                 {navItems.find((item) => pathname === item.href || pathname.startsWith(item.href + "/"))?.name ||
                                     "Dashboard"}
                             </h1>
-                            <p className="mono-label text-[10px] text-white/30 mt-0.5">DocuMate · Demo Mode</p>
+                            <p className="mono-label text-[10px] text-orange-300/65 mt-0.5">DocuMate Ember · Onchain Workspace</p>
                         </div>
                         <WalletConnect />
                     </div>

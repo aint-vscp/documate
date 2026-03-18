@@ -61,11 +61,11 @@ export function CVCards({ profile, isLoading }: CVCardsProps) {
         <div className="space-y-6">
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-pink-500/10 to-purple-500/10 border border-pink-500/20 rounded-xl p-4">
+                <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-4">
                     <p className="text-gray-400 text-sm">Total Earnings</p>
                     <p className="text-2xl font-bold text-white mt-1">
                         {formatBalance(profile.totalEarnings, 10, 2)}
-                        <span className="text-pink-400 text-lg ml-1">$DOCU</span>
+                        <span className="text-orange-400 text-lg ml-1">$DOCU</span>
                     </p>
                 </div>
 
@@ -95,7 +95,7 @@ export function CVCards({ profile, isLoading }: CVCardsProps) {
             <div className="space-y-3">
                 <h3 className="text-white font-semibold flex items-center gap-2">
                     <svg
-                        className="w-5 h-5 text-purple-400"
+                        className="w-5 h-5 text-amber-400"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -125,10 +125,10 @@ function ContractCard({ contract }: { contract: ProofOfContract }) {
 
     const categoryColors: Record<string, string> = {
         WebDev: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-        Design: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+        Design: "bg-orange-500/20 text-orange-300 border-orange-500/30",
         Legal: "bg-amber-500/20 text-amber-300 border-amber-500/30",
         Engineering: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-        Consulting: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+        Consulting: "bg-amber-500/20 text-amber-300 border-amber-500/30",
     };
 
     const colorClass =
@@ -159,7 +159,7 @@ function ContractCard({ contract }: { contract: ProofOfContract }) {
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                             <span className="text-gray-400">Contract:</span>
-                            <code className="text-purple-400 text-xs font-mono">
+                            <code className="text-amber-400 text-xs font-mono">
                                 {truncateHash(contract.contractHash)}
                             </code>
                         </div>
@@ -170,7 +170,7 @@ function ContractCard({ contract }: { contract: ProofOfContract }) {
                     <p className="text-lg font-bold text-white">
                         +{formatBalance(contract.amount, 10, 2)}
                     </p>
-                    <p className="text-pink-400 text-sm">$DOCU</p>
+                    <p className="text-orange-400 text-sm">$DOCU</p>
                 </div>
             </div>
 
@@ -180,7 +180,7 @@ function ContractCard({ contract }: { contract: ProofOfContract }) {
                     href={`https://westend.subscan.io/extrinsic/${contract.transactionHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-purple-400 hover:text-purple-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="flex items-center gap-1 text-amber-400 hover:text-amber-300 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                     View on Explorer
                     <svg

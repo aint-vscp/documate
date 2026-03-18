@@ -101,14 +101,14 @@ export default function AdminUsersPage() {
                         setSearchQuery(e.target.value);
                         setPage(1);
                     }}
-                    className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
                 />
             </div>
 
             {/* Loading */}
             {isLoading && (
                 <div className="flex items-center justify-center py-12">
-                    <div className="w-8 h-8 border-2 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
                 </div>
             )}
 
@@ -146,7 +146,7 @@ export default function AdminUsersPage() {
                                 >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                                            <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
                                                 {user.walletAddress.slice(2, 4).toUpperCase()}
                                             </div>
                                             <div>
@@ -177,7 +177,7 @@ export default function AdminUsersPage() {
                                         <span
                                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                 user.subscription?.tier === "POWER_USER"
-                                                    ? "bg-purple-500/20 text-purple-400"
+                                                    ? "bg-amber-500/20 text-amber-400"
                                                     : "bg-gray-700/50 text-gray-400"
                                             }`}
                                         >

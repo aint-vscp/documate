@@ -16,6 +16,7 @@ import {
     renderTemplate,
     validatePlaceholderValues,
     createDocument,
+    syncDocumentToServer,
 } from "@/lib/document";
 import type { DocumentTemplate, PlaceholderField } from "@/types";
 
@@ -52,31 +53,70 @@ export default function NewDocumentPage() {
         setPlaceholderValues((prev) => ({ ...prev, [key]: value }));
     };
 
-    const handleAIAssist = async () => {
-        if (!selectedTemplate || !aiPrompt.trim()) return;
+    const formalizeText = (raw: string): string => {
+        const contractions: Record<string, string> = {
+            "don't": "do not", "doesn't": "does not", "didn't": "did not",
+            "can't": "cannot", "couldn't": "could not", "won't": "will not",
+            "wouldn't": "would not", "shouldn't": "should not", "haven't": "have not",
+            "hasn't": "has not", "hadn't": "had not", "isn't": "is not",
+            "aren't": "are not", "wasn't": "was not", "weren't": "were not",
+            "I'm": "I am", "I've": "I have", "I'll": "I will", "I'd": "I would",
+            "you're": "you are", "you've": "you have", "you'll": "you will",
+            "they're": "they are", "they've": "they have", "they'll": "they will",
+            "we're": "we are", "we've": "we have", "we'll": "we will",
+            "it's": "it is", "it'll": "it will", "that's": "that is",
+            "there's": "there is", "here's": "here is", "let's": "let us",
+        };
+        const informal: Record<string, string> = {
+            "\blike\b": "such as", "\bget\b": "obtain", "\bgot\b": "obtained",
+            "\bgetting\b": "obtaining", "\bkid\b": "child", "\bkids\b": "children",
+            "\bbig\b": "significant", "\bsmall\b": "minimal", "\bbuy\b": "purchase",
+            "\bshow\b": "demonstrate", "\btell\b": "inform", "\bask\b": "request",
+            "\bstart\b": "commence", "\bend\b": "conclude", "\bfix\b": "rectify",
+            "\bcheck\b": "verify", "\blook at\b": "review", "\bwant\b": "require",
+            "\bneed\b": "necessitate", "\buse\b": "utilize", "\bhelp\b": "assist",
+        };
 
+        let text = raw.trim();
+
+        // Expand contractions (case-sensitive for I-forms, then lowercase)
+        Object.entries(contractions).forEach(([from, to]) => {
+            text = text.replace(new RegExp(from, "g"), to);
+        });
+
+        // Replace informal words
+        Object.entries(informal).forEach(([pattern, replacement]) => {
+            text = text.replace(new RegExp(pattern, "gi"), replacement);
+        });
+
+        // Capitalize first letter of each sentence
+        text = text.replace(/(?:^|[.!?]\s+)([a-z])/g, (m) => m.toUpperCase());
+
+        // Capitalize "I" standing alone
+        text = text.replace(/\bi\b/g, "I");
+
+        // Ensure ends with a period if there is content
+        if (text && !/[.!?]$/.test(text)) text += ".";
+
+        return text;
+    };
+
+    const handleAIAssist = () => {
+        if (!aiPrompt.trim()) return;
         setIsGenerating(true);
-        try {
-            // Call AI API to fill placeholders
-            const response = await fetch("/api/documents/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    templateId: selectedTemplate.id,
-                    prompt: aiPrompt,
-                    currentValues: placeholderValues,
-                }),
-            });
-
-            const data = await response.json();
-            if (data.success && data.values) {
-                setPlaceholderValues((prev) => ({ ...prev, ...data.values }));
+        // Client-side grammar and formality analysis
+        const refined = formalizeText(aiPrompt);
+        // Populate the first unfilled text placeholder with the refined content
+        if (selectedTemplate) {
+            const firstEmpty = selectedTemplate.placeholders.find(
+                (p) => (p.type === "text" || p.type === "textarea") && !placeholderValues[p.key]
+            );
+            if (firstEmpty) {
+                setPlaceholderValues((prev) => ({ ...prev, [firstEmpty.key]: refined }));
             }
-        } catch (error) {
-            console.error("AI assist failed:", error);
-        } finally {
-            setIsGenerating(false);
         }
+        setAiPrompt(refined);
+        setIsGenerating(false);
     };
 
     const handlePreview = () => {
@@ -91,6 +131,16 @@ export default function NewDocumentPage() {
 
         if (!receiverAddress.trim()) {
             setErrors(["Receiver wallet address is required"]);
+            return;
+        }
+
+        if (account && receiverAddress.trim().toLowerCase() === account.toLowerCase()) {
+            setErrors(["Receiver must be another Docu user address (not your own wallet)"]);
+            return;
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(receiverAddress.trim())) {
+            setErrors(["Receiver wallet address must be a valid EVM address"]);
             return;
         }
 
@@ -114,6 +164,12 @@ export default function NewDocumentPage() {
             content: renderedContent,
             placeholderValues,
         });
+
+        try {
+            await syncDocumentToServer(doc);
+        } catch {
+            // Keep local document if shared sync fails.
+        }
 
         // Navigate to document view
         router.push(`/dashboard/documents/${doc.id}`);
@@ -183,7 +239,7 @@ export default function NewDocumentPage() {
                         <React.Fragment key={s}>
                             <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === s
-                                        ? "bg-purple-600 text-white"
+                                        ? "bg-amber-500 text-white"
                                         : isPast
                                             ? "bg-green-600 text-white"
                                             : "bg-gray-700 text-gray-400"
@@ -228,35 +284,31 @@ export default function NewDocumentPage() {
                     {/* Left: Form */}
                     <div className="space-y-6">
                         {/* AI Assist */}
-                        <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-xl border border-purple-500/30 p-4">
-                            <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
-                                <span className="text-lg">✨</span> AI Assistant
-                            </h3>
-                            <p className="text-sm text-gray-400 mb-3">
-                                Describe your needs and let AI fill the details
+                        <div className="bg-black/50 rounded-xl border border-white/[0.08] p-4">
+                            <h3 className="font-semibold text-white mb-1 text-sm mono-label">Text Analyzer</h3>
+                            <p className="text-xs text-white/35 mb-3">
+                                Type your draft below — the analyzer will correct grammar, expand contractions,
+                                and rewrite to formal professional language.
                             </p>
                             <textarea
                                 value={aiPrompt}
                                 onChange={(e) => setAiPrompt(e.target.value)}
-                                placeholder="E.g., Create an NDA for a software development project with ABC Corp, 3-year duration..."
-                                className="w-full px-4 py-3 rounded-lg bg-gray-800/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+                                placeholder="E.g., I want to create an NDA with ABC Corp for a 3-year software project..."
+                                className="w-full px-4 py-3 rounded-lg bg-black border border-white/[0.08] text-white placeholder-white/20 focus:outline-none focus:border-cyan-400/40 transition-colors resize-none text-sm"
                                 rows={3}
                             />
                             <button
                                 onClick={handleAIAssist}
                                 disabled={isGenerating || !aiPrompt.trim()}
-                                className="mt-3 w-full py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="mt-3 w-full py-2.5 rounded-lg bg-cyan-400 text-black font-semibold text-sm hover:bg-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
                                 {isGenerating ? (
                                     <>
-                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Generating...
+                                        <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                        Analyzing...
                                     </>
                                 ) : (
-                                    <>Generate with AI</>
+                                    <>Analyze &amp; Formalize</>
                                 )}
                             </button>
                         </div>
@@ -271,7 +323,7 @@ export default function NewDocumentPage() {
                                 value={receiverAddress}
                                 onChange={(e) => setReceiverAddress(e.target.value)}
                                 placeholder="0x..."
-                                className="w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors font-mono text-sm"
+                                className="w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 transition-colors font-mono text-sm"
                             />
                             <p className="text-xs text-gray-500 mt-2">
                                 The counterparty who will sign this document
@@ -313,7 +365,7 @@ export default function NewDocumentPage() {
                             </button>
                             <button
                                 onClick={handlePreview}
-                                className="flex-1 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
+                                className="flex-1 py-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
                             >
                                 Preview Document
                             </button>
@@ -350,7 +402,7 @@ export default function NewDocumentPage() {
                         </button>
                         <button
                             onClick={handleCreate}
-                            className="flex-1 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-colors"
+                            className="flex-1 py-3 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-medium transition-colors"
                         >
                             Create Document
                         </button>
@@ -371,7 +423,7 @@ function PlaceholderInput({
     onChange: (value: string) => void;
 }) {
     const inputClasses =
-        "w-full px-4 py-2.5 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors";
+        "w-full px-4 py-2.5 rounded-lg bg-gray-900/50 border border-gray-700/50 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 transition-colors";
 
     return (
         <div>

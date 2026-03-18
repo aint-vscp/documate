@@ -72,7 +72,7 @@ export const VERIFICATION = {
 
 export const TEMPLATE_CATEGORIES = [
     { id: "Legal", emoji: "⚖️", color: "from-blue-500 to-indigo-600" },
-    { id: "Creative", emoji: "🎨", color: "from-pink-500 to-purple-600" },
+    { id: "Creative", emoji: "🎨", color: "from-orange-500 to-amber-500" },
     { id: "Engineering", emoji: "⚙️", color: "from-green-500 to-emerald-600" },
 ] as const;
 

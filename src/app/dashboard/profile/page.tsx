@@ -9,11 +9,14 @@ import { DidBadge } from "@/components/chain";
 import { useEVMAccount, useIsEVMConnected } from "@/hooks/useEVMWallet";
 import { useDocuMateContract } from "@/hooks/useDocuMateContract";
 import { useStakingContract } from "@/hooks/useStakingContract";
+import { POLKADOT_HUB_TESTNET } from "@/config/DocuMateABI";
 import {
     loadUserProfile,
     createUserProfile,
     type UserProfile,
 } from "@/lib/polkadot/kilt";
+import { getHirerTrustStats } from "@/lib/document";
+import { getReputationTagsForAddress } from "@/lib/reputation";
 import type { ProfessionalIdentityClaim } from "@/types";
 
 const BREACH_REASONS = [
@@ -24,6 +27,17 @@ const BREACH_REASONS = [
     { value: "FRAUD", label: "Fraud", desc: "Intentional deception or misrepresentation" },
     { value: "OTHER", label: "Other", desc: "Other breach of contract" },
 ] as const;
+
+type EntityType = "FREELANCER" | "HIRING_COMPANY" | "SERVICE_COMPANY" | "INDIVIDUAL";
+type EngagementType = "SEEKING_WORK" | "HIRING" | "BOTH";
+
+interface ActivityItem {
+    type: string;
+    txHash: string;
+    createdAt: string;
+    referenceId: string;
+    amount: number | null;
+}
 
 export default function ProfilePage() {
     const account = useEVMAccount();
@@ -44,6 +58,16 @@ export default function ProfilePage() {
     const [poolStats, setPoolStats] = useState<{ totalStaked: string; totalSlashed: string; poolBalance: string; stakerCount: number } | null>(null);
     const [isStaking, setIsStaking] = useState(false);
     const [isUnstaking, setIsUnstaking] = useState(false);
+    const [reputationTags, setReputationTags] = useState<string[]>([]);
+    const [hirerTrustStats, setHirerTrustStats] = useState({
+        sentToOthers: 0,
+        completedByReceivers: 0,
+        completionRate: 0,
+    });
+    const [entityType, setEntityType] = useState<EntityType>("INDIVIDUAL");
+    const [engagementType, setEngagementType] = useState<EngagementType>("SEEKING_WORK");
+    const [isSavingDirectory, setIsSavingDirectory] = useState(false);
+    const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
 
     // Breach form state
     const [breachForm, setBreachForm] = useState({
@@ -83,16 +107,82 @@ export default function ProfilePage() {
         }
     }, [getPlatformStats]);
 
+    const loadDirectoryProfile = useCallback(async (walletAddress: string) => {
+        try {
+            const response = await fetch(`/api/directory/profile?walletAddress=${encodeURIComponent(walletAddress)}`, {
+                method: "GET",
+                cache: "no-store",
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload?.data) return;
+
+            setEntityType((payload.data.entityType || "INDIVIDUAL") as EntityType);
+            setEngagementType((payload.data.engagementType || "SEEKING_WORK") as EngagementType);
+        } catch {
+            // Best-effort load only.
+        }
+    }, []);
+
+    const saveDirectoryProfile = useCallback(async () => {
+        if (!account) return;
+
+        setIsSavingDirectory(true);
+        try {
+            const displayName = profile?.credentials?.[0]?.credentialSubject?.name as string | undefined;
+            const role = profile?.credentials?.[0]?.credentialSubject?.role as string | undefined;
+            const skills = (profile?.credentials?.[0]?.credentialSubject?.skills as string[] | undefined) ?? [];
+            const bio = profile?.credentials?.[0]?.credentialSubject?.bio as string | undefined;
+
+            await fetch("/api/directory/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    walletAddress: account,
+                    did: profile?.did,
+                    displayName: displayName || "",
+                    role: role || "",
+                    bio: bio || "",
+                    entityType,
+                    engagementType,
+                    skills,
+                    tags: reputationTags,
+                }),
+            });
+        } finally {
+            setIsSavingDirectory(false);
+        }
+    }, [account, engagementType, entityType, profile, reputationTags]);
+
+    const fetchActivity = useCallback(async (walletAddress: string) => {
+        try {
+            const response = await fetch(`/api/activity?walletAddress=${encodeURIComponent(walletAddress)}`, {
+                method: "GET",
+                cache: "no-store",
+            });
+            const payload = await response.json();
+            if (response.ok && Array.isArray(payload?.data)) {
+                setActivityItems(payload.data as ActivityItem[]);
+            }
+        } catch {
+            setActivityItems([]);
+        }
+    }, []);
+
     // Fetch on-chain status when account changes
     useEffect(() => {
         if (account) {
             checkVerified(account).then(setEvmVerified);
             fetchOnChainStats();
+            fetchActivity(account);
+            loadDirectoryProfile(account);
             // Fetch staking info
             getStakeInfo(account).then((info) => { if (info) setStakeInfo(info); });
             getPoolStats().then((stats) => { if (stats) setPoolStats(stats); });
+            // Load reputation tags earned via finalized documents
+            setReputationTags(getReputationTagsForAddress(account));
+            setHirerTrustStats(getHirerTrustStats(account));
         }
-    }, [account, checkVerified, fetchOnChainStats, getStakeInfo, getPoolStats]);
+    }, [account, checkVerified, fetchActivity, fetchOnChainStats, getStakeInfo, getPoolStats, loadDirectoryProfile]);
 
     const handleVerifyOnChain = async () => {
         if (!account) return;
@@ -159,6 +249,24 @@ export default function ProfilePage() {
             const newProfile = await createUserProfile(formData);
             setProfile(newProfile);
             setShowClaimForm(false);
+
+            if (account) {
+                await fetch("/api/directory/profile", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        walletAddress: account,
+                        did: newProfile.did,
+                        displayName: formData.name,
+                        role: formData.role,
+                        bio: formData.bio || "",
+                        entityType,
+                        engagementType,
+                        skills: formData.skills,
+                        tags: reputationTags,
+                    }),
+                });
+            }
         } catch (error) {
             console.error("Failed to create DID:", error);
         } finally {
@@ -261,7 +369,7 @@ export default function ProfilePage() {
                 <p className="mt-2 text-sm text-slate-300">
                     Manage DID verification, staking-backed reputation, and breach reporting from one control plane.
                 </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
                     <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-3">
                         <p className="mono-label text-[11px] text-slate-400">Wallet</p>
                         <p className="mt-1 text-sm text-white font-medium">{account?.slice(0, 6)}...{account?.slice(-4)}</p>
@@ -277,6 +385,13 @@ export default function ProfilePage() {
                         <p className={`mt-1 text-sm font-medium ${stakeInfo?.staked ? "text-emerald-400" : "text-slate-300"}`}>
                             {stakeInfo?.staked ? "Active" : "Not Staked"}
                         </p>
+                    </div>
+                    <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-3">
+                        <p className="mono-label text-[11px] text-cyan-200">Trusted Hirer</p>
+                        <p className="mt-1 text-sm text-white font-medium">
+                            {hirerTrustStats.completedByReceivers}/{hirerTrustStats.sentToOthers} signed by counterparties
+                        </p>
+                        <p className="text-xs text-cyan-200/80 mt-1">Completion Rate: {hirerTrustStats.completionRate}%</p>
                     </div>
                 </div>
             </section>
@@ -313,7 +428,7 @@ export default function ProfilePage() {
                                     <h3 className="text-white font-semibold text-lg">
                                         {profile.credentials[0].credentialSubject.name}
                                     </h3>
-                                    <p className="text-pink-400">
+                                    <p className="text-orange-400">
                                         {profile.credentials[0].credentialSubject.role}
                                     </p>
                                     {profile.credentials[0].credentialSubject.skills && (
@@ -324,7 +439,7 @@ export default function ProfilePage() {
                                             ).map((skill) => (
                                                 <span
                                                     key={skill}
-                                                    className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full"
+                                                    className="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded-full"
                                                 >
                                                     {skill}
                                                 </span>
@@ -347,7 +462,7 @@ export default function ProfilePage() {
                                 onChange={(e) =>
                                     setFormData({ ...formData, name: e.target.value })
                                 }
-                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
                                 placeholder="John Doe"
                             />
                         </div>
@@ -362,7 +477,7 @@ export default function ProfilePage() {
                                 onChange={(e) =>
                                     setFormData({ ...formData, role: e.target.value })
                                 }
-                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
                                 placeholder="Full Stack Developer"
                             />
                         </div>
@@ -375,7 +490,7 @@ export default function ProfilePage() {
                                     value={skillInput}
                                     onChange={(e) => setSkillInput(e.target.value)}
                                     onKeyDown={(e) => e.key === "Enter" && addSkill()}
-                                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+                                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
                                     placeholder="Add a skill..."
                                 />
                                 <button
@@ -390,7 +505,7 @@ export default function ProfilePage() {
                                     {formData.skills.map((skill) => (
                                         <span
                                             key={skill}
-                                            className="inline-flex items-center gap-1 text-sm bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full"
+                                            className="inline-flex items-center gap-1 text-sm bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full"
                                         >
                                             {skill}
                                             <button
@@ -414,7 +529,7 @@ export default function ProfilePage() {
                                 onChange={(e) =>
                                     setFormData({ ...formData, bio: e.target.value })
                                 }
-                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors resize-none"
+                                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors resize-none"
                                 rows={3}
                                 placeholder="Brief description of your expertise..."
                             />
@@ -424,7 +539,7 @@ export default function ProfilePage() {
                             <button
                                 onClick={handleCreateDid}
                                 disabled={isCreatingDid || !formData.name || !formData.role}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-semibold rounded-xl hover:from-pink-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isCreatingDid ? "Creating DID..." : "Create Identity"}
                             </button>
@@ -439,7 +554,7 @@ export default function ProfilePage() {
                 ) : (
                     <button
                         onClick={() => setShowClaimForm(true)}
-                        className="w-full py-4 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:border-pink-500 hover:text-pink-400 transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-4 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:border-orange-500 hover:text-orange-400 transition-colors flex items-center justify-center gap-2"
                     >
                         <svg
                             className="w-5 h-5"
@@ -456,6 +571,73 @@ export default function ProfilePage() {
                         </svg>
                         Claim Your Professional Identity
                     </button>
+                )}
+            </section>
+
+            {/* Marketplace Categorization */}
+            <section className="surface-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-white">Marketplace Categorization</h2>
+                        <p className="text-white/35 text-sm mt-0.5">Classify your profile so others can discover you as hiring, freelancing, or service provider.</p>
+                    </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-2">Entity Type</label>
+                        <select
+                            value={entityType}
+                            onChange={(e) => setEntityType(e.target.value as EntityType)}
+                            aria-label="Entity type"
+                            title="Entity type"
+                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors"
+                        >
+                            <option value="INDIVIDUAL">Individual Professional</option>
+                            <option value="FREELANCER">Freelancer Looking for Work</option>
+                            <option value="HIRING_COMPANY">Company Hiring Talent</option>
+                            <option value="SERVICE_COMPANY">Company Available for Hire</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-2">Engagement Mode</label>
+                        <select
+                            value={engagementType}
+                            onChange={(e) => setEngagementType(e.target.value as EngagementType)}
+                            aria-label="Engagement mode"
+                            title="Engagement mode"
+                            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors"
+                        >
+                            <option value="SEEKING_WORK">Seeking Work / Contracts</option>
+                            <option value="HIRING">Hiring / Buying Services</option>
+                            <option value="BOTH">Both Hiring and Available</option>
+                        </select>
+                    </div>
+                </div>
+                <button
+                    onClick={saveDirectoryProfile}
+                    disabled={isSavingDirectory || !account}
+                    className="mt-4 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                    {isSavingDirectory ? "Saving..." : "Save Categorization"}
+                </button>
+            </section>
+
+            {/* Reputation Tags */}
+            <section className="surface-card p-6">
+                <div className="flex items-start justify-between mb-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-white">Reputation Tags</h2>
+                        <p className="text-white/35 text-sm mt-0.5">Automatically earned when counterparties finalize documents with you</p>
+                    </div>
+                </div>
+                {reputationTags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                        {reputationTags.map(tag => (
+                            <span key={tag} className="neon-tag">{tag}</span>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-white/20 text-sm">No reputation tags yet. Tags are assigned when your documents are finalized by counterparties.</p>
                 )}
             </section>
 
@@ -486,7 +668,7 @@ export default function ProfilePage() {
                             <button
                                 onClick={handleVerifyOnChain}
                                 disabled={isVerifying}
-                                className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
                             >
                                 {isVerifying ? "Verifying..." : "Verify DID"}
                             </button>
@@ -520,8 +702,13 @@ export default function ProfilePage() {
                         </p>
                     </div>
                     <button
-                        onClick={fetchOnChainStats}
-                        className="text-sm text-pink-400 hover:text-pink-300 transition-colors flex items-center gap-1"
+                        onClick={() => {
+                            fetchOnChainStats();
+                            if (account) {
+                                fetchActivity(account);
+                            }
+                        }}
+                        className="text-sm text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1"
                     >
                         <svg
                             className="w-4 h-4"
@@ -541,11 +728,11 @@ export default function ProfilePage() {
                 </div>
                 {isLoadingReputation ? (
                     <div className="flex items-center justify-center py-12">
-                        <div className="w-8 h-8 border-2 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" />
+                        <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
                     </div>
                 ) : platformStats ? (
                     <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-4">
+                        <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl p-4">
                             <p className="text-2xl font-bold text-white">{platformStats.totalDocuments}</p>
                             <p className="text-sm text-gray-400">Documents On-Chain</p>
                         </div>
@@ -553,7 +740,7 @@ export default function ProfilePage() {
                             <p className="text-2xl font-bold text-white">{platformStats.totalTransactions}</p>
                             <p className="text-sm text-gray-400">Transactions</p>
                         </div>
-                        <div className="bg-gradient-to-br from-pink-500/20 to-orange-500/20 border border-pink-500/30 rounded-xl p-4">
+                        <div className="bg-gradient-to-br from-orange-500/20 to-orange-500/20 border border-orange-500/30 rounded-xl p-4">
                             <p className="text-2xl font-bold text-white">{platformStats.totalVolume} $DOCU</p>
                             <p className="text-sm text-gray-400">Total Volume</p>
                         </div>
@@ -563,6 +750,32 @@ export default function ProfilePage() {
                         <p className="text-gray-500">No on-chain activity yet. Start by verifying your DID and uploading documents.</p>
                     </div>
                 )}
+
+                <div className="mt-4 bg-gray-900/40 border border-gray-700/50 rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-white mb-3">Recent Wallet Activity</h3>
+                    {activityItems.length === 0 ? (
+                        <p className="text-xs text-gray-500">No recorded transaction hashes for this wallet yet.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {activityItems.slice(0, 8).map((item) => (
+                                <div key={`${item.type}-${item.txHash}-${item.referenceId}`} className="flex items-center justify-between rounded-lg border border-gray-700/40 bg-gray-800/40 px-3 py-2">
+                                    <div>
+                                        <p className="text-xs text-white font-medium">{item.type === "DOCUMENT_ANCHOR" ? "Document Anchor" : "Template Purchase"}</p>
+                                        <p className="text-[11px] text-gray-500">{new Date(item.createdAt).toLocaleString()}</p>
+                                    </div>
+                                    <a
+                                        href={`${POLKADOT_HUB_TESTNET.explorer}tx/${item.txHash}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[11px] font-mono text-orange-300 hover:text-orange-200"
+                                    >
+                                        {item.txHash.slice(0, 10)}...{item.txHash.slice(-6)}
+                                    </a>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </section>
 
             {/* Reputation Staking */}
@@ -717,6 +930,8 @@ export default function ProfilePage() {
                                     <h3 className="text-xl font-semibold text-white">Report Breach of Contract</h3>
                                     <button
                                         onClick={() => setShowBreachModal(false)}
+                                        aria-label="Close breach report dialog"
+                                        title="Close breach report dialog"
                                         className="text-gray-400 hover:text-white transition-colors"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

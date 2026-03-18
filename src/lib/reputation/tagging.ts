@@ -296,9 +296,9 @@ export class ReputationTaggingService {
     getTagColor(source: TagSource): { bg: string; text: string } {
         const colors: Record<TagSource, { bg: string; text: string }> = {
             POC_COMPLETION: { bg: "bg-emerald-500/20", text: "text-emerald-400" },
-            TEMPLATE_SALES: { bg: "bg-pink-500/20", text: "text-pink-400" },
+            TEMPLATE_SALES: { bg: "bg-orange-500/20", text: "text-orange-400" },
             VERIFICATION: { bg: "bg-blue-500/20", text: "text-blue-400" },
-            MANUAL: { bg: "bg-purple-500/20", text: "text-purple-400" },
+            MANUAL: { bg: "bg-amber-500/20", text: "text-amber-400" },
             BREACH: { bg: "bg-red-500/20", text: "text-red-400" },
         };
         return colors[source];
@@ -355,4 +355,79 @@ export function getPrimaryRoleTag(tags: ReputationTag[]): ReputationTag | null {
     return roleTags.reduce((best, tag) => 
         (tag.value || 0) > (best.value || 0) ? tag : best
     );
+}
+
+const REPUTATION_STORE_KEY = "documate-reputation-tags";
+
+function normalizeAddress(address: string): string {
+    return (address || "").trim().toLowerCase();
+}
+
+export function deriveReputationTags(
+    templateName: string,
+    placeholderValues: Record<string, string>
+): string[] {
+    const name = templateName.toLowerCase();
+    const tags = new Set<string>();
+
+    if (/nda|non.disclosure/.test(name))         { tags.add("Legal Consultant"); tags.add("Contract Author"); }
+    if (/employment/.test(name))                  { tags.add("HR Professional"); tags.add("Talent Acquisition"); }
+    if (/service agreement|services/.test(name))  { tags.add("Freelancer"); tags.add("Service Provider"); }
+    if (/software|dev|code|engineer/.test(name))  { tags.add("Software Engineer"); }
+    if (/ai|machine learning|ml|data/.test(name)) { tags.add("AI Engineer"); tags.add("Data Scientist"); }
+    if (/design|creative|brand/.test(name))       { tags.add("Creative Professional"); tags.add("Designer"); }
+    if (/consulting|advisory/.test(name))         { tags.add("Consultant"); }
+    if (/partnership|joint venture/.test(name))   { tags.add("Business Development"); }
+    if (/lease|rental|property/.test(name))       { tags.add("Real Estate"); }
+    if (/medical|health|clinical/.test(name))     { tags.add("Healthcare Professional"); }
+
+    const roleValues = Object.entries(placeholderValues)
+        .filter(([k]) => /role|title|position|profession|job/.test(k.toLowerCase()))
+        .map(([, v]) => v.trim())
+        .filter(Boolean);
+
+    roleValues.forEach(role => {
+        const r = role.toLowerCase();
+        if (/engineer|developer|programmer/.test(r)) tags.add("Software Engineer");
+        if (/ai|ml|machine learning/.test(r))        tags.add("AI Engineer");
+        if (/designer|ux|ui/.test(r))                tags.add("Designer");
+        if (/manager|lead|head/.test(r))             tags.add("Team Lead");
+        if (/lawyer|attorney|legal/.test(r))         tags.add("Legal Consultant");
+        if (/marketing|growth/.test(r))              tags.add("Marketing Professional");
+        if (/analyst|data|science/.test(r))          tags.add("Data Analyst");
+        if (tags.size === 0) tags.add(role.replace(/\b\w/g, c => c.toUpperCase()));
+    });
+
+    if (tags.size === 0) tags.add("Document Professional");
+    return [...tags];
+}
+
+export function addReputationTagsForAddress(address: string, tags: string[]): void {
+    try {
+        const normalizedAddress = normalizeAddress(address);
+        if (!normalizedAddress) return;
+
+        const raw = localStorage.getItem(REPUTATION_STORE_KEY);
+        const store: Record<string, string[]> = raw ? JSON.parse(raw) : {};
+        const existing = new Set(store[normalizedAddress] ?? []);
+        tags.forEach(t => existing.add(t));
+        store[normalizedAddress] = [...existing];
+        localStorage.setItem(REPUTATION_STORE_KEY, JSON.stringify(store));
+    } catch {
+        // localStorage unavailable
+    }
+}
+
+export function getReputationTagsForAddress(address: string): string[] {
+    try {
+        const normalizedAddress = normalizeAddress(address);
+        if (!normalizedAddress) return [];
+
+        const raw = localStorage.getItem(REPUTATION_STORE_KEY);
+        if (!raw) return [];
+        const store: Record<string, string[]> = JSON.parse(raw);
+        return store[normalizedAddress] ?? [];
+    } catch {
+        return [];
+    }
 }

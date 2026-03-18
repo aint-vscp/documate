@@ -9,7 +9,8 @@ async function main() {
   const privateKey = process.env.PRIVATE_KEY;
 
   if (!privateKey) {
-    throw new Error("Missing PRIVATE_KEY in .env");
+    console.log("Skipping smoke test: PRIVATE_KEY is not set in .env. Set PRIVATE_KEY to run write-path testnet smoke validation.");
+    return;
   }
 
   const provider = new ethers.JsonRpcProvider(rpc);
