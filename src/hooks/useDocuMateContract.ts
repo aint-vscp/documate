@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { ethers } from "ethers";
-import { DOCUMATE_ABI, CONTRACT_ADDRESS } from "@/config/DocuMateABI";
+import { DOCUMATE_ABI, CONTRACT_ADDRESS, POLKADOT_HUB_TESTNET } from "@/config/DocuMateABI";
 
 type EthereumProvider = {
     isMetaMask?: boolean;
@@ -67,6 +67,21 @@ async function contractHasSelector(contract: ethers.Contract, functionName: stri
     return code.toLowerCase().includes(selector);
 }
 
+async function assertContractTargetChain(contract: ethers.Contract): Promise<void> {
+    const provider = contract.runner?.provider;
+    if (!provider) {
+        throw new Error("Provider unavailable. Connect MetaMask on Polkadot Hub TestNet and retry.");
+    }
+
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+    if (chainId !== POLKADOT_HUB_TESTNET.chainId) {
+        throw new Error(
+            `Wrong network. Switch MetaMask to ${POLKADOT_HUB_TESTNET.name} (chainId ${POLKADOT_HUB_TESTNET.chainId}) and retry.`
+        );
+    }
+}
+
 export function useDocuMateContract() {
     const getReadContract = useCallback((): ethers.Contract | null => {
         const providerObject = getMetaMaskProvider();
@@ -96,6 +111,7 @@ export function useDocuMateContract() {
     const uploadDocument = useCallback(async (ipfsHash: string) => {
         const contract = await getWriteContract();
         if (!contract) throw new Error("Contract not available");
+        await assertContractTargetChain(contract);
 
         const hasUploadDocument = await contractHasSelector(contract, "uploadDocument");
         if (!hasUploadDocument) {
@@ -113,12 +129,18 @@ export function useDocuMateContract() {
     const canUploadDocument = useCallback(async (): Promise<boolean> => {
         const contract = await getWriteContract();
         if (!contract) return false;
-        return contractHasSelector(contract, "uploadDocument");
+        try {
+            await assertContractTargetChain(contract);
+            return contractHasSelector(contract, "uploadDocument");
+        } catch {
+            return false;
+        }
     }, [getWriteContract]);
 
     const executeTransaction = useCallback(async (creatorAddress: string, amountInEther: string) => {
         const contract = await getWriteContract();
         if (!contract) throw new Error("Contract not available");
+        await assertContractTargetChain(contract);
 
         if (!/^0x[a-fA-F0-9]{40}$/.test(creatorAddress)) {
             throw new Error("Template creator wallet is invalid or unavailable.");
@@ -167,6 +189,7 @@ export function useDocuMateContract() {
     const verifyDID = useCallback(async (userAddress: string) => {
         const contract = await getWriteContract();
         if (!contract) throw new Error("Contract not available");
+        await assertContractTargetChain(contract);
         const tx = await contract.mockKiltPrecompile(userAddress);
         return tx.wait();
     }, [getWriteContract]);

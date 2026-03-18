@@ -72,6 +72,10 @@ function mapProviderError(error: unknown): string {
     return err?.message || "Failed to connect MetaMask.";
 }
 
+function isTargetChain(chainId: number | null): boolean {
+    return chainId === POLKADOT_HUB_TESTNET.chainId;
+}
+
 const WALLET_COOKIE_KEY = "documate_evm_wallet";
 const CHAIN_COOKIE_KEY = "documate_evm_chain";
 
@@ -173,6 +177,12 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
             }) as string;
             const chainId = parseInt(chainIdHex, 16);
 
+            if (!isTargetChain(chainId)) {
+                throw new Error(
+                    `Wrong network. Please switch MetaMask to ${POLKADOT_HUB_TESTNET.name} (chainId ${POLKADOT_HUB_TESTNET.chainId}).`
+                );
+            }
+
             set({
                 account: accounts[0],
                 chainId,
@@ -240,6 +250,13 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
             await switchToPolkadotHub(provider);
             const chainIdHex = await provider.request({ method: "eth_chainId" }) as string;
             const chainId = parseInt(chainIdHex, 16);
+
+            if (!isTargetChain(chainId)) {
+                throw new Error(
+                    `Wrong network. Please switch MetaMask to ${POLKADOT_HUB_TESTNET.name} (chainId ${POLKADOT_HUB_TESTNET.chainId}).`
+                );
+            }
+
             set({ chainId, error: null });
             setCookie(CHAIN_COOKIE_KEY, String(chainId));
         } catch (err) {
@@ -299,13 +316,16 @@ export const useEVMWallet = create<EVMWalletState>()((set) => ({
 
             const chainIdHex = await provider.request({ method: "eth_chainId" }) as string;
             const chainId = parseInt(chainIdHex, 16);
+            const onTargetChain = isTargetChain(chainId);
 
             set({
                 account,
                 chainId,
-                isConnected: true,
+                isConnected: onTargetChain,
                 isConnecting: false,
-                error: null,
+                error: onTargetChain
+                    ? null
+                    : `Wrong network. Switch to ${POLKADOT_HUB_TESTNET.name} to enable contract actions.`,
             });
 
             setCookie(WALLET_COOKIE_KEY, account);
