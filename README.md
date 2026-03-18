@@ -1,32 +1,59 @@
 # DocuMate
 
-DocuMate is a trust layer for freelance and contract work on Polkadot Hub Testnet. It converts template publishing, purchases, and breach accountability into verifiable on-chain state so disputes are settled by evidence, not screenshots.
+DocuMate is an evidence-first trust layer for freelance and contract work on Polkadot Hub Testnet. It turns identity-gated actions, settlement, and enforcement into verifiable on-chain outcomes so disputes can be resolved from reproducible proof.
 
-Track: Polkadot Solidity Hackathon Track 2 (PVM Smart Contracts)
-Deadline target: March 20, 2026
+- Track: Polkadot Solidity Hackathon Track 2 (PVM Smart Contracts)
+- Deadline target: March 20, 2026
 
-## Problem Statement
+## What Judges Can Verify Quickly
 
-Contract work still breaks on trust boundaries:
-- Identity claims are hard to verify at payment time.
-- Revenue sharing is often off-chain and opaque.
-- Proven abuse has no enforceable on-chain consequence.
+1. Runtime integration is real and not mock-only by default.
+2. Core contracts are deployed on Polkadot Hub Testnet (chain 420420417).
+3. Settlement logic is deterministic with 75/20/5 split proof.
 
-DocuMate addresses these with identity-gated actions, deterministic settlement, and slashable staking.
+Use these commands from repo root:
 
-## Track 2 Differentiator (PVM Runtime Integration)
+1. npm run lint
+2. npm run build
+3. npx hardhat test
+4. npm run testnet:config-check
 
-DocuMateMarketplace performs runtime identity verification through the Polkadot Hub identity precompile at:
+Expected anchor lines include:
 
-0x0000000000000000000000000000000000000818
+- Config check passed.
+- split(1 PAS): 750000000000000000 200000000000000000 50000000000000000
+- Marketplace and staking addresses matching this README.
 
-The contract uses:
+## Problem
+
+Most contract workflows still fail at trust boundaries:
+
+- Identity claims are hard to verify at action time.
+- Revenue sharing is often opaque off-chain bookkeeping.
+- Breach outcomes are difficult to enforce in a durable way.
+
+DocuMate addresses this with verification-gated actions, deterministic settlement, and slash-aware contract flows.
+
+## Track 2 Differentiator: Runtime Precompile Integration
+
+DocuMateMarketplace uses the Polkadot Hub runtime identity precompile at:
+
+- 0x0000000000000000000000000000000000000818
+
+Evidence-backed call path in Solidity:
+
 - identityPrecompile.staticcall(...)
 - abi.encodeWithSelector(IIdentityPrecompile.identity.selector, account)
 
-This is the critical Track 2 distinction: Solidity calling runtime-native functionality exposed by PVM precompiles. A plain EVM deployment cannot natively read Polkadot runtime identity state without an external oracle/trust bridge.
+Source-backed default mode:
 
-## Network and Live Contracts
+- useMockVerification = false
+
+This is the Track 2 distinction: Solidity consuming runtime-native capability through a PVM precompile, instead of relying on an external trust bridge.
+
+For exact proof details and source references, see docs/precompile-integration.md.
+
+## Live Network and Contract Context
 
 - Network: Polkadot Hub Testnet
 - Chain ID: 420420417
@@ -34,28 +61,14 @@ This is the critical Track 2 distinction: Solidity calling runtime-native functi
 - Marketplace: 0x233FE6112E5Ad4Db1c83358B30D581F837314BB1
 - Staking: 0x1cf190eabe490B50AaBE91b4567ebe88126e8D24
 
-Explorer links:
+Explorer references:
+
 - https://blockscout-testnet.polkadot.io/address/0x233FE6112E5Ad4Db1c83358B30D581F837314BB1
 - https://blockscout-testnet.polkadot.io/address/0x1cf190eabe490B50AaBE91b4567ebe88126e8D24
 
-## Local Setup
+## Validation Runbook
 
-1. Install dependencies
-    npm install
-
-2. Prepare local environment
-    - Copy .env.example to .env
-    - Fill private values locally
-    - Do not commit .env
-
-3. Initialize Prisma and run app
-    npx prisma generate
-    npx prisma db push
-    npm run dev
-
-## Validation and Test Instructions
-
-Run the final validation sequence:
+Run in order:
 
 1. npm audit --omit=dev
 2. npm run lint
@@ -63,18 +76,31 @@ Run the final validation sequence:
 4. npx hardhat test
 5. npm run testnet:config-check
 
-Expected signals:
-- audit reports 0 vulnerabilities
-- build includes dynamic routes for /api/market/mint and /api/market/purchase
-- hardhat suite reports 5 passing tests
-- config-check reports Config check passed, correct contract addresses, non-zero totalVolume and totalBurned, and 75/20/5 split output
+Interpretation rules:
 
-## Documentation for Judges
+- If a command fails, the related claim is NOT VERIFIED.
+- Do not infer pass status from previous runs.
+- Use command output anchors in SUBMISSION.md to mark checklist status.
 
-- Precompile proof: docs/precompile-integration.md
-- Demo flow: docs/demo-script.md
-- Judge Q and A: docs/judge-qa.md
-- Submission evidence checklist: SUBMISSION.md
+## Local Setup
+
+1. npm install
+2. Copy .env.example to .env and set local secrets.
+3. npx prisma generate
+4. npx prisma db push
+5. npm run dev
+
+## Judge Documentation Map
+
+- Runtime precompile proof: docs/precompile-integration.md
+- Demo walkthrough and fallback path: docs/demo-script.md
+- Judge Q and A with bounded claims: docs/judge-qa.md
+- Submission evidence checklist and release gate: SUBMISSION.md
+
+## Scope and Claim Boundaries
+
+- This README only asserts behaviors that are backed by repository source or deterministic commands.
+- Transaction-level outcomes should be treated as NOT VERIFIED unless explicit hashes and command outputs are captured in submission evidence.
 
 ## License
 
