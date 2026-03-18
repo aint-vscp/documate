@@ -65,7 +65,7 @@
 | DOC-02 | Phase 2 | Complete |
 | DOC-01 | Phase 3 | Pending |
 | DOC-03 | Phase 3 | Pending |
-| REP-01 | Phase 4 | Pending |
+| REP-01 | Phase 3 | Pending |
 | REP-02 | Phase 4 | Pending |
 | SUB-01 | Phase 5 | Complete |
 | SUB-02 | Phase 5 | Complete |
