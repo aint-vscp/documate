@@ -27,6 +27,18 @@ async function ensureSharedDocumentTable(): Promise<void> {
     `);
 }
 
+async function tableExists(tableName: string): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND LOWER(name) = LOWER('${escapeSqlString(tableName)}')
+        LIMIT 1
+    `);
+
+    return rows.length > 0;
+}
+
 export async function GET(request: NextRequest) {
     try {
         const walletAddress = normalizeAddress(request.nextUrl.searchParams.get("walletAddress") || "");
@@ -47,23 +59,26 @@ export async function GET(request: NextRequest) {
             amount: string | null;
         }> = [];
 
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            purchases = await prisma.$queryRawUnsafe<any[]>(`
-                SELECT
-                    'MARKET_PURCHASE' AS type,
-                    p.txHash AS txHash,
-                    p.createdAt AS createdAt,
-                    p.templateId AS referenceId,
-                    p.totalPrice AS amount
-                FROM Purchase p
-                WHERE LOWER(p.buyerAddress) = '${escapeSqlString(walletAddress)}'
-                   OR LOWER(p.sellerAddress) = '${escapeSqlString(walletAddress)}'
-                ORDER BY p.createdAt DESC
-                LIMIT 50
-            `);
-        } catch (error) {
-            console.warn("Activity API purchase query skipped:", error);
+        const hasPurchaseTable = await tableExists("Purchase");
+        if (hasPurchaseTable) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                purchases = await prisma.$queryRawUnsafe<any[]>(`
+                    SELECT
+                        'MARKET_PURCHASE' AS type,
+                        p.txHash AS txHash,
+                        p.createdAt AS createdAt,
+                        p.templateId AS referenceId,
+                        p.totalPrice AS amount
+                    FROM Purchase p
+                    WHERE LOWER(p.buyerAddress) = '${escapeSqlString(walletAddress)}'
+                       OR LOWER(p.sellerAddress) = '${escapeSqlString(walletAddress)}'
+                    ORDER BY p.createdAt DESC
+                    LIMIT 50
+                `);
+            } catch {
+                // Non-fatal: keep activity feed available from document anchors.
+            }
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

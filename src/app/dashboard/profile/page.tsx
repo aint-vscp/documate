@@ -53,6 +53,9 @@ export default function ProfilePage() {
     const [breachSuccess, setBreachSuccess] = useState(false);
     const [evmVerified, setEvmVerified] = useState(false);
     const [isCheckingVerification, setIsCheckingVerification] = useState(false);
+    const [isCheckingKiltStatus, setIsCheckingKiltStatus] = useState(true);
+    const [kiltStatusAvailable, setKiltStatusAvailable] = useState<boolean | null>(null);
+    const [kiltStatusMessage, setKiltStatusMessage] = useState("Checking KILT network status...");
     const [platformStats, setPlatformStats] = useState<{ totalDocuments: number; totalTransactions: number; totalVolume: string } | null>(null);
     const [stakeInfo, setStakeInfo] = useState<{ staked: boolean; amount: string; since: number } | null>(null);
     const [poolStats, setPoolStats] = useState<{ totalStaked: string; totalSlashed: string; poolBalance: string; stakerCount: number } | null>(null);
@@ -197,6 +200,49 @@ export default function ProfilePage() {
             setIsCheckingVerification(false);
         }
     };
+
+    const checkKiltStatus = useCallback(async () => {
+        setIsCheckingKiltStatus(true);
+        try {
+            const response = await fetch("/api/auth/kilt-status", {
+                method: "GET",
+                cache: "no-store",
+            });
+
+            if (!response.ok) {
+                throw new Error("Unable to fetch KILT status");
+            }
+
+            const payload = await response.json();
+            const available = Boolean(payload?.available);
+
+            setKiltStatusAvailable(available);
+            setKiltStatusMessage(
+                typeof payload?.message === "string"
+                    ? payload.message
+                    : available
+                      ? "KILT network is online"
+                      : "KILT network is currently unavailable"
+            );
+        } catch {
+            setKiltStatusAvailable(false);
+            setKiltStatusMessage("Could not reach verification service - check your connection");
+        } finally {
+            setIsCheckingKiltStatus(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        checkKiltStatus();
+
+        const intervalId = setInterval(() => {
+            checkKiltStatus();
+        }, 60_000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [checkKiltStatus]);
 
     const handleStake = async () => {
         if (!account) return;
@@ -667,21 +713,58 @@ export default function ProfilePage() {
                                     Verification is done via your KILT DID on Polkadot Hub.
                                 </p>
                             </div>
+                            {isCheckingKiltStatus ? (
+                                <div className="rounded-lg border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-300">
+                                    Checking KILT network status...
+                                </div>
+                            ) : kiltStatusAvailable ? (
+                                <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+                                    <p className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                        KILT Network Online
+                                    </p>
+                                    <p className="mt-1 text-xs text-emerald-200/80">{kiltStatusMessage}</p>
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                                    <p className="flex items-center gap-2 text-sm font-medium text-amber-300">
+                                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                                        KILT Network Unavailable
+                                    </p>
+                                    <p className="mt-1 text-xs text-amber-200/90">{kiltStatusMessage}</p>
+                                    <p className="mt-1 text-xs text-amber-200/80">
+                                        Use manual verification: contact admin at 0x742d35Cc6634C0532925a3b844Bc9e7595f7A6f6.
+                                    </p>
+                                </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-3">
                                 <a
                                     href="https://did.kilt.io"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="px-4 py-2 bg-white/[0.06] border border-white/[0.12] text-white rounded-xl hover:bg-white/[0.1] transition-colors text-sm font-medium"
+                                    className={`px-4 py-2 border rounded-xl transition-colors text-sm font-medium ${kiltStatusAvailable
+                                        ? "bg-white/[0.06] border-white/[0.12] text-white hover:bg-white/[0.1]"
+                                        : "bg-white/[0.03] border-white/[0.08] text-white/40 pointer-events-none"
+                                    }`}
+                                    title={kiltStatusAvailable ? "Open KILT DID management" : "KILT network is unavailable"}
+                                    aria-disabled={!kiltStatusAvailable}
                                 >
                                     Create/Manage KILT DID
                                 </a>
                                 <button
                                     onClick={handleCheckVerificationStatus}
-                                    disabled={isCheckingVerification}
+                                    disabled={isCheckingVerification || !kiltStatusAvailable}
                                     className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                                    title={kiltStatusAvailable ? "Check on-chain verification status" : "KILT network is unavailable"}
                                 >
                                     {isCheckingVerification ? "Checking..." : "Check my verification status"}
+                                </button>
+                                <button
+                                    onClick={checkKiltStatus}
+                                    disabled={isCheckingKiltStatus}
+                                    className="px-4 py-2 bg-white/[0.06] border border-white/[0.12] text-white rounded-xl hover:bg-white/[0.1] transition-colors disabled:opacity-50 text-sm font-medium"
+                                >
+                                    {isCheckingKiltStatus ? "Retrying..." : "Retry status check"}
                                 </button>
                             </div>
                         </div>

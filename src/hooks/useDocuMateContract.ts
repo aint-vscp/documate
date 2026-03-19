@@ -69,6 +69,41 @@ async function contractHasSelector(contract: ethers.Contract, functionName: stri
     return code.toLowerCase().includes(selector);
 }
 
+async function contractHasCode(contract: ethers.Contract): Promise<boolean> {
+    const provider = contract.runner?.provider;
+    if (!provider) return false;
+    const address = String(contract.target);
+    const code = await provider.getCode(address);
+    return !!code && code !== "0x";
+}
+
+async function contractSupportsUploadDocument(contract: ethers.Contract): Promise<boolean> {
+    const provider = contract.runner?.provider;
+    if (!provider) return false;
+
+    const address = String(contract.target);
+    let data: string;
+
+    try {
+        data = contract.interface.encodeFunctionData("uploadDocument", ["documate-probe"]);
+    } catch {
+        return false;
+    }
+
+    try {
+        await provider.call({ to: address, data });
+        return true;
+    } catch (error) {
+        const err = error as { data?: string; info?: { error?: { data?: string } } };
+        const revertData = typeof err?.data === "string"
+            ? err.data
+            : (typeof err?.info?.error?.data === "string" ? err.info.error.data : "");
+
+        // Non-empty revert data indicates a matched function reverted in-contract.
+        return revertData.length > 2;
+    }
+}
+
 async function assertContractTargetChain(contract: ethers.Contract): Promise<void> {
     const provider = contract.runner?.provider;
     if (!provider) {
@@ -88,6 +123,9 @@ export function useDocuMateContract() {
     const getReadContract = useCallback((): ethers.Contract | null => {
         const providerObject = getMetaMaskProvider();
         if (!providerObject) return null;
+        const hasConfiguredAddress = /^0x[a-fA-F0-9]{40}$/.test(CONTRACT_ADDRESS)
+            && CONTRACT_ADDRESS.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+        if (!hasConfiguredAddress) return null;
         const provider = new ethers.BrowserProvider(providerObject as never);
         return new ethers.Contract(CONTRACT_ADDRESS, DOCUMATE_ABI, provider);
     }, []);
@@ -95,6 +133,9 @@ export function useDocuMateContract() {
     const getWriteContract = useCallback(async (): Promise<ethers.Contract | null> => {
         const providerObject = getMetaMaskProvider();
         if (!providerObject) return null;
+        const hasConfiguredAddress = /^0x[a-fA-F0-9]{40}$/.test(CONTRACT_ADDRESS)
+            && CONTRACT_ADDRESS.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+        if (!hasConfiguredAddress) return null;
         const provider = new ethers.BrowserProvider(providerObject as never);
         const signer = await provider.getSigner();
         return new ethers.Contract(CONTRACT_ADDRESS, DOCUMATE_ABI, signer);
@@ -134,9 +175,14 @@ export function useDocuMateContract() {
         if (!contract) throw new Error("Contract not available");
         await assertContractTargetChain(contract);
 
-        const hasUploadDocument = await contractHasSelector(contract, "uploadDocument");
+        const hasCode = await contractHasCode(contract);
+        if (!hasCode) {
+            throw new Error(`Document anchoring contract is misconfigured. No bytecode found at ${String(contract.target)}.`);
+        }
+
+        const hasUploadDocument = await contractSupportsUploadDocument(contract);
         if (!hasUploadDocument) {
-            throw new Error("Document anchoring contract is misconfigured. uploadDocument() is not available at the configured address.");
+            throw new Error(`Document anchoring contract is misconfigured. uploadDocument() is not available at ${String(contract.target)}.`);
         }
 
         try {
