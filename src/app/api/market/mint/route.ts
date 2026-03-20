@@ -9,6 +9,15 @@ import { ethers } from "ethers";
 import { withRateLimit } from "@/lib/security/rateLimit";
 
 const MARKETPLACE_ABI = ["function treasury() external view returns (address)"];
+const RPC_TIMEOUT_MS = 25_000;
+
+async function withTimeout<T>(promise: Promise<T>, ms = RPC_TIMEOUT_MS): Promise<T> {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("RPC request timed out.")), ms);
+    });
+
+    return Promise.race([promise, timeoutPromise]);
+}
 
 async function verifyMintPayment(
     paymentTxHash: string,
@@ -33,11 +42,13 @@ async function verifyMintPayment(
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const marketplace = new ethers.Contract(marketplaceAddress, MARKETPLACE_ABI, provider);
 
-    const [tx, receipt, treasuryAddress] = await Promise.all([
-        provider.getTransaction(paymentTxHash),
-        provider.getTransactionReceipt(paymentTxHash),
-        marketplace.treasury() as Promise<string>,
-    ]);
+    const [tx, receipt, treasuryAddress] = await withTimeout(
+        Promise.all([
+            provider.getTransaction(paymentTxHash),
+            provider.getTransactionReceipt(paymentTxHash),
+            marketplace.treasury() as Promise<string>,
+        ])
+    );
 
     if (!tx) {
         return { ok: false, error: "Mint payment transaction was not found on RPC." };

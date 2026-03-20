@@ -1,7 +1,6 @@
-# DocuMate Live Demo Script (3 Minutes)
+# DocuMate Product Demo Script (3 Minutes)
 
-Event: Demo Day, March 24-25
-Format: presenter line, operator action, judge focus
+Format: presenter line, operator action, audience focus
 Objective: show all five pillars in strict order
 
 ## 0:00-0:20 Opening and Stakes
@@ -13,7 +12,7 @@ What to click:
 - Open the dashboard home with wallet already connected.
 - Keep chain and account badge visible.
 
-Judges should look at:
+Audience should look at:
 - Connected wallet state.
 - Polkadot Hub testnet context.
 
@@ -27,7 +26,7 @@ What to click:
 - Click Check my verification status.
 - Show verified badge/state.
 
-Judges should look at:
+Audience should look at:
 - Verified indicator bound to wallet identity.
 - DID verification prompt/path when unverified.
 
@@ -42,7 +41,7 @@ What to click:
 - Fill title, terms, and pricing.
 - Proceed to mint flow screen without confirming yet.
 
-Judges should look at:
+Audience should look at:
 - Structured contract content creation.
 - Clear transition from editable draft to on-chain-ready artifact.
 
@@ -55,7 +54,7 @@ What to click:
 - Open a validated document or trust panel.
 - Trigger or reveal validation result.
 
-Judges should look at:
+Audience should look at:
 - Tiered output: Gold, Silver, Bronze.
 - Validation shown as cryptographic evidence, not manual review text.
 
@@ -69,7 +68,7 @@ What to click:
 - Select a template listing.
 - Click purchase and confirm transaction.
 
-Judges should look at:
+Audience should look at:
 - Price and purchase confirmation.
 - Split visualization and immutable payout percentages.
 
@@ -82,7 +81,7 @@ What to click:
 - Open Profile or Reputation panel.
 - Highlight generated tags after completed flow.
 
-Judges should look at:
+Audience should look at:
 - New trust tags tied to real activity.
 - Breach/risk signaling as accountability mechanism.
 
@@ -94,10 +93,10 @@ DocuMate - you are what you sign.
 What to click:
 - Hold on branded closing screen.
 
-Judges should look at:
+Audience should look at:
 - Final brand line and full-flow completion.
 
-## Operator Checklist (Before Going On Stage)
+## Operator Checklist (Before Going Live)
 
 - Wallet is connected and funded for testnet actions.
 - Verified and unverified fallback states are both prepared.

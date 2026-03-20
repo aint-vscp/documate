@@ -2,16 +2,13 @@
 
 ![DocuMate Thumbnail](docs/thumbnail.png)
 
+![Build](https://img.shields.io/github/actions/workflow/status/Vash/documate/ci.yml?branch=main&label=build)
+![License](https://img.shields.io/github/license/Vash/documate)
+![Issues](https://img.shields.io/github/issues/Vash/documate)
+
 DocuMate is an evidence-first trust layer for freelance and contract work on Polkadot Hub Testnet. It turns identity-gated actions, settlement, and enforcement into verifiable on-chain outcomes so disputes can be resolved from reproducible proof.
 
-- Track: Polkadot Solidity Hackathon Track 2 (PVM Smart Contracts)
-- Deadline target: March 20, 2026
-
-## What Judges Can Verify Quickly
-
-1. Runtime integration is real and not mock-only by default.
-2. Core contracts are deployed on Polkadot Hub Testnet (chain 420420417).
-3. Settlement logic is deterministic with 75/20/5 split proof.
+## Quick Verification
 
 Use these commands from repo root:
 
@@ -20,7 +17,7 @@ Use these commands from repo root:
 3. npx hardhat test
 4. npm run testnet:config-check
 
-Expected anchor lines include:
+Expected anchors include:
 
 - Config check passed.
 - split(1 PAS): 750000000000000000 200000000000000000 50000000000000000
@@ -36,7 +33,7 @@ Most contract workflows still fail at trust boundaries:
 
 DocuMate addresses this with verification-gated actions, deterministic settlement, and slash-aware contract flows.
 
-## Track 2 Differentiator: Runtime Precompile Integration
+## Runtime Precompile Integration
 
 DocuMateMarketplace uses the Polkadot Hub runtime identity precompile at:
 
@@ -51,7 +48,7 @@ Source-backed default mode:
 
 - useMockVerification = false
 
-This is the Track 2 distinction: Solidity consuming runtime-native capability through a PVM precompile, instead of relying on an external trust bridge.
+This architecture enables Solidity contracts to consume runtime-native identity capabilities through a PVM precompile, instead of relying on an external trust bridge.
 
 For exact proof details and source references, see docs/precompile-integration.md.
 
@@ -82,7 +79,7 @@ Interpretation rules:
 
 - If a command fails, the related claim is NOT VERIFIED.
 - Do not infer pass status from previous runs.
-- Use command output anchors in SUBMISSION.md to mark checklist status.
+- Use command output anchors in CHANGELOG.md to mark release validation status.
 
 ## Local Setup
 
@@ -92,17 +89,17 @@ Interpretation rules:
 4. npx prisma db push
 5. npm run dev
 
-## Judge Documentation Map
+## Documentation Map
 
 - Runtime precompile proof: docs/precompile-integration.md
-- Demo walkthrough and fallback path: docs/demo-script.md
-- Judge Q and A with bounded claims: docs/judge-qa.md
-- Submission evidence checklist and release gate: SUBMISSION.md
+- Demo walkthrough and fallback path: docs/DEMO.md
+- FAQ with bounded claims: docs/FAQ.md
+- Product and release history: CHANGELOG.md
 
 ## Scope and Claim Boundaries
 
 - This README only asserts behaviors that are backed by repository source or deterministic commands.
-- Transaction-level outcomes should be treated as NOT VERIFIED unless explicit hashes and command outputs are captured in submission evidence.
+- Transaction-level outcomes should be treated as NOT VERIFIED unless explicit hashes and command outputs are captured in release evidence.
 
 ## License
 

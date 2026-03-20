@@ -1,11 +1,11 @@
 # DocuMate Technical Summary (One Page)
 
-## Submission Scope
+## Product Scope
 
 DocuMate is a Polkadot Hub dApp that combines on-chain economics, identity-gated actions, and document trust scoring.
 
-- Track 1 alignment: Solidity EVM contracts for marketplace economics and user-facing dApp flows.
-- Track 2 alignment: precompile-aware verification architecture, staking/slashing reputation mechanics, and runtime-native integration path.
+- Solidity EVM contracts for marketplace economics and user-facing dApp flows.
+- Precompile-aware verification architecture, staking/slashing reputation mechanics, and runtime-native integration path.
 
 ## What Is Production-Ready Today
 
@@ -30,7 +30,7 @@ Operations:
 
 - Verification mode currently supports mock identity mapping for controlled demo/test flows.
 - Native precompile-only verification must be enforced for full production posture.
-- TEE validation is simulated in API runtime with cryptographic parsing/verification behavior; production attestation lifecycle remains a post-hackathon milestone.
+- TEE validation is simulated in API runtime with cryptographic parsing/verification behavior; production attestation lifecycle remains a later milestone.
 
 ## Security Posture
 

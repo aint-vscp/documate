@@ -8,7 +8,7 @@ import { DemoPlaceholder } from "./scenes/DemoPlaceholder";
 import { ClosingScene } from "./scenes/ClosingScene";
 
 /**
- * DocuMate Hackathon Pitch Video
+ * DocuMate Product Pitch Video
  *
  * Total: 3 minutes (5400 frames @ 30fps)
  *
@@ -41,10 +41,10 @@ export const PitchVideo: React.FC = () => {
             >
                 <Img
                     src={staticFile("logo.png")}
-                    alt="DocuMate logo"
+                    alt="DocuMate"
                     style={{
-                        width: 38,
-                        height: 38,
+                        width: 32,
+                        height: 32,
                         borderRadius: 10,
                         objectFit: "cover",
                     }}

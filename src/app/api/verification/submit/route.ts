@@ -1,5 +1,5 @@
 /**
- * Verification Submission API Route
+ * Verification Request API Route
  * POST - Submit a verification request for a minted template
  */
 

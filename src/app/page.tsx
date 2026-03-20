@@ -18,7 +18,7 @@ const winReasons = [
   "Problem has measurable financial harm ($10B+ consumer fraud, $367M+ employment scams).",
   "Contracts and core flows are testnet-validated, not static mocks.",
   "Economics are encoded on-chain: 75% creator, 20% treasury, 5% community staking pool.",
-  "Track 1 and Track 2 narrative is unified under one trust architecture.",
+  "Runtime identity, settlement, and reputation are unified under one trust architecture.",
 ];
 
 const archItems = [
@@ -31,7 +31,7 @@ const archItems = [
 const principles = [
   { title: "Visibility of System Status",  copy: "Wallet, chain, tx state, and verification outcomes are always visible in one glance." },
   { title: "Error Prevention by Design",   copy: "Pre-checks and deterministic contract rules reduce failed actions in critical flows." },
-  { title: "Recognition over Recall",      copy: "Guided demo sections and semantic labels keep judges oriented without extra explanation." },
+  { title: "Recognition over Recall",      copy: "Guided product sections and semantic labels keep users oriented without extra explanation." },
 ];
 
 const demoSteps = [
@@ -52,8 +52,8 @@ export default function HomePage() {
       <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.08] bg-[#131a26]/88 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
-              <Image src="/logo.png" alt="DocuMate" width={36} height={36} className="w-full h-full object-cover" priority />
+            <div className="h-8 w-8 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
+              <Image src="/logo.png" alt="DocuMate" width={32} height={32} className="w-full h-full object-cover" priority />
             </div>
             <span className="text-base font-bold gradient-text">DocuMate</span>
             <span className="neon-tag hidden md:inline-flex">Dual Track</span>
@@ -84,7 +84,15 @@ export default function HomePage() {
 
             {/* left */}
             <div>
-              <p className="mono-label text-[10px] text-white/25 tracking-widest">Polkadot Solidity Hackathon · 2026</p>
+              <div className="mb-6 flex items-center gap-4">
+                <div className="h-16 w-16 rounded-2xl overflow-hidden border border-orange-300/25 bg-white/[0.03]">
+                  <Image src="/logo.png" alt="DocuMate" width={64} height={64} className="h-full w-full object-cover" priority />
+                </div>
+                <div className="hidden lg:block h-24 w-24 rounded-3xl overflow-hidden border border-orange-300/25 bg-white/[0.03]">
+                  <Image src="/logo.png" alt="DocuMate" width={96} height={96} className="h-full w-full object-cover" priority />
+                </div>
+              </div>
+              <p className="mono-label text-[10px] text-white/25 tracking-widest">Polkadot Hub Runtime dApp</p>
               <h1 className="mt-4 text-5xl font-bold leading-tight text-white md:text-6xl lg:text-7xl">
                 End Fraud with<br />
                 <span className="gradient-text">Verifiable</span><br />
@@ -114,13 +122,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* right — why this can win */}
+            {/* right — value snapshot */}
             <div className="surface-card p-6">
               <div className="flex items-center gap-2 mb-5">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shrink-0" />
-                <p className="mono-label text-[10px] text-cyan-300/80">Judge Quick Read</p>
+                <p className="mono-label text-[10px] text-cyan-300/80">Quick Product Read</p>
               </div>
-              <h2 className="text-xl font-bold text-white">Why this can win</h2>
+              <h2 className="text-xl font-bold text-white">Why this is production-ready</h2>
               <div className="mt-4 space-y-3">
                 {winReasons.map((point, i) => (
                   <div key={i} className="flex gap-3">
@@ -183,7 +191,7 @@ export default function HomePage() {
       <section id="demo-flow" className="relative z-10 border-y border-white/[0.05] bg-white/[0.01] px-6 py-16">
         <div className="mx-auto w-full max-w-7xl">
           <div className="mb-10 text-center">
-            <p className="mono-label text-[10px] text-white/25">Judge Demo Path</p>
+            <p className="mono-label text-[10px] text-white/25">Product Demo Path</p>
             <h3 className="mt-2 text-3xl font-bold text-white">Show value in under 60 seconds</h3>
           </div>
           <div className="grid gap-px overflow-hidden rounded-xl border border-white/[0.07] md:grid-cols-5">
@@ -204,9 +212,14 @@ export default function HomePage() {
       {/* footer */}
       <footer className="relative z-10 px-6 py-8">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between border-t border-white/[0.06] pt-6">
-          <div>
-            <p className="text-sm font-bold text-white">DocuMate</p>
-            <p className="mt-0.5 text-xs text-white/25">Decentralized reputation and document trust infrastructure.</p>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
+              <Image src="/logo.png" alt="DocuMate" width={32} height={32} className="h-full w-full object-cover" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">DocuMate</p>
+              <p className="mt-0.5 text-xs text-white/25">Decentralized reputation and document trust infrastructure.</p>
+            </div>
           </div>
           <div className="flex items-center gap-5 text-xs text-white/35">
             <Link href="/whitepaper" className="hover:text-white transition-colors">Whitepaper</Link>

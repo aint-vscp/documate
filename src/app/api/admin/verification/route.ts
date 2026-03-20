@@ -5,7 +5,18 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { ethers } from "ethers";
 import prisma from "@/lib/db";
+
+const RPC_TIMEOUT_MS = 25_000;
+
+async function withTimeout<T>(promise: Promise<T>, ms = RPC_TIMEOUT_MS): Promise<T> {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("RPC request timed out.")), ms);
+    });
+
+    return Promise.race([promise, timeoutPromise]);
+}
 
 export async function GET(request: NextRequest) {
     try {
@@ -46,7 +57,70 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { verificationId, action, feedback, reviewerAddress } = body;
+        const { verificationId, action, feedback, reviewerAddress, walletAddress } = body;
+
+        if (action === "manual_verify") {
+            const targetWalletAddress = String(walletAddress || "").trim();
+            if (!/^0x[a-fA-F0-9]{40}$/.test(targetWalletAddress)) {
+                return NextResponse.json(
+                    { success: false, error: "A valid walletAddress is required for manual verification" },
+                    { status: 400 }
+                );
+            }
+
+            const privateKey = process.env.PRIVATE_KEY;
+            const rpcUrl = process.env.POLKADOT_HUB_RPC_URL || "https://eth-rpc-testnet.polkadot.io/";
+            const contractAddress = process.env.NEXT_PUBLIC_DOCUMATE_CONTRACT_ADDRESS;
+
+            if (!privateKey) {
+                return NextResponse.json(
+                    { success: false, error: "PRIVATE_KEY is missing from environment" },
+                    { status: 500 }
+                );
+            }
+
+            if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+                return NextResponse.json(
+                    { success: false, error: "NEXT_PUBLIC_DOCUMATE_CONTRACT_ADDRESS is missing or invalid" },
+                    { status: 500 }
+                );
+            }
+
+            const provider = new ethers.JsonRpcProvider(rpcUrl);
+            const signer = new ethers.Wallet(privateKey, provider);
+            const contract = new ethers.Contract(
+                contractAddress,
+                [
+                    "function mockKiltPrecompile(address) external",
+                    "function isVerified(address) view returns (bool)",
+                ],
+                signer
+            );
+
+            const tx = await withTimeout(contract.mockKiltPrecompile(targetWalletAddress));
+            await withTimeout(tx.wait());
+            const verified = await withTimeout(contract.isVerified(targetWalletAddress));
+
+            if (!verified) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        verified: false,
+                        txHash: tx.hash,
+                        address: targetWalletAddress,
+                        error: "Contract call succeeded but wallet is still not verified",
+                    },
+                    { status: 500 }
+                );
+            }
+
+            return NextResponse.json({
+                success: true,
+                verified: true,
+                txHash: tx.hash,
+                address: targetWalletAddress,
+            });
+        }
 
         if (!verificationId || !action) {
             return NextResponse.json(

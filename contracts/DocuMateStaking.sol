@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /**
  * @title DocuMateStaking - Reputation Staking & Slashing
  * @author DocuMate Team
- * @notice Track 1: EVM Smart Contract Track - Polkadot Solidity Hackathon
+ * @notice Reputation staking and slashing for DocuMate on Polkadot Hub
  *
  * @dev Users lock 50 PAS to back their reputation. If a breach report is
  * validated by an admin, the stake is slashed (confiscated). This creates

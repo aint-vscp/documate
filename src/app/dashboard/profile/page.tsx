@@ -71,6 +71,7 @@ export default function ProfilePage() {
     const [engagementType, setEngagementType] = useState<EngagementType>("SEEKING_WORK");
     const [isSavingDirectory, setIsSavingDirectory] = useState(false);
     const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
+    const [walletCopied, setWalletCopied] = useState(false);
 
     // Breach form state
     const [breachForm, setBreachForm] = useState({
@@ -371,12 +372,23 @@ export default function ProfilePage() {
                 alert(data.error || "Failed to submit breach report.");
             }
         } catch (error) {
-            console.error("Breach report submission error:", error);
+            console.error("Breach report request error:", error);
             alert("Network error. Please try again.");
         } finally {
             setIsSubmittingBreach(false);
         }
     }, [account, breachForm]);
+
+    const handleCopyWalletAddress = useCallback(async () => {
+        if (!account) return;
+        try {
+            await navigator.clipboard.writeText(account);
+            setWalletCopied(true);
+            setTimeout(() => setWalletCopied(false), 1500);
+        } catch {
+            setWalletCopied(false);
+        }
+    }, [account]);
 
     if (!isConnected) {
         return (
@@ -733,7 +745,8 @@ export default function ProfilePage() {
                                     </p>
                                     <p className="mt-1 text-xs text-amber-200/90">{kiltStatusMessage}</p>
                                     <p className="mt-1 text-xs text-amber-200/80">
-                                        Use manual verification: contact admin at 0x742d35Cc6634C0532925a3b844Bc9e7595f7A6f6.
+                                        KILT Network is currently offline. Your wallet can be verified manually by the contract owner.
+                                        Send your wallet address to the admin and they will run on-chain verification for you.
                                     </p>
                                 </div>
                             )}
@@ -778,7 +791,16 @@ export default function ProfilePage() {
                     Connected Wallet
                 </h2>
                 <div className="bg-gray-800/50 rounded-xl p-4">
-                    <p className="text-gray-400 text-sm mb-1">MetaMask Account</p>
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                        <p className="text-gray-400 text-sm">MetaMask Account</p>
+                        <button
+                            onClick={handleCopyWalletAddress}
+                            disabled={!account}
+                            className="px-3 py-1.5 bg-white/[0.06] border border-white/[0.12] text-white rounded-lg hover:bg-white/[0.1] transition-colors disabled:opacity-50 text-xs font-medium"
+                        >
+                            {walletCopied ? "Copied" : "Copy"}
+                        </button>
+                    </div>
                     <code className="text-white text-sm break-all">
                         {account}
                     </code>

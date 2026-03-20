@@ -1,6 +1,6 @@
 # DocuMate Video Narration Script
 
-Source basis: all Remotion composition files were reviewed, and this narration is timed to the active 90-second composition HackathonDemo90 (2700 frames at 30fps).
+Source basis: all Remotion composition files were reviewed, and this narration is timed to the active 90-second composition ProductDemo90 (2700 frames at 30fps).
 
 ## Voiceover (Word-for-Word)
 

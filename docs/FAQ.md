@@ -1,10 +1,10 @@
-# Judge Q and A Cheat Sheet
+# Product FAQ
 
 ## Why Polkadot Hub instead of a plain EVM chain?
 
-DocuMate reads runtime identity state through a PVM precompile call from Solidity. The _isVerified function calls identityPrecompile.staticcall with IIdentityPrecompile.identity.selector. That runtime path is the Track 2 differentiator.
+DocuMate reads runtime identity state through a PVM precompile call from Solidity. The _isVerified function calls identityPrecompile.staticcall with IIdentityPrecompile.identity.selector.
 
-## What proves this is Track 2 and not mock mode?
+## What proves runtime integration is not mock mode?
 
 - DEFAULT_IDENTITY_PRECOMPILE is set to 0x0000000000000000000000000000000000000818.
 - Constructor sets useMockVerification = false.
@@ -42,7 +42,7 @@ Current proof points:
 - npm run build passes with expected API routes.
 - npx hardhat test reports 5 passing tests.
 
-## What is next after hackathon?
+## What is next on the roadmap?
 
 1. Harden and expand identity-proof UX on runtime verification path.
 2. Improve reputation indexing and risk scoring.

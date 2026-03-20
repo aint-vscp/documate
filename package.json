@@ -4,17 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "eslint . --ext .ts,.tsx,.js,.mjs --quiet --report-unused-disable-directives-severity off",
     "contracts:compile": "hardhat compile",
     "contracts:test": "hardhat test",
+    "verify:wallet": "node scripts/verify-wallet.js",
     "testnet:smoke": "node scripts/testnet-smoke-track2.js",
     "testnet:config-check": "node scripts/testnet-config-check.js",
     "demo:fallback-check": "node scripts/demo-fallback-check.js",
     "release:checklist": "npm run lint && npm run contracts:compile && npm run contracts:test && npm run testnet:config-check && npm run demo:fallback-check",
     "video:studio": "npx remotion studio",
-    "video:render": "npx remotion render HackathonDemo90 docs/demo-video.mp4",
+    "video:render": "npx remotion render ProductDemo90 docs/demo-video.mp4",
     "video:still": "npx remotion still PitchVideo out/thumbnail.png --frame=0"
   },
   "dependencies": {

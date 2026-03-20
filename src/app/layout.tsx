@@ -14,6 +14,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://documate.app"),
   title: "DocuMate Ember | Decentralized Trust Infrastructure",
   description:
     "DocuMate Ember: trust infrastructure for contracts and reputation on Polkadot Hub EVM. Immutable economics, verifiable workflows, and a demo-ready governance stack.",
@@ -26,6 +27,28 @@ export const metadata: Metadata = {
     "contracts",
     "NFT",
   ],
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
+  openGraph: {
+    title: "DocuMate Ember | Decentralized Trust Infrastructure",
+    description:
+      "DocuMate Ember: trust infrastructure for contracts and reputation on Polkadot Hub EVM.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 1200,
+        alt: "DocuMate",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

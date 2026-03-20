@@ -2,13 +2,13 @@
 
 ## Decentralized Reputation & Marketplace Engine on Polkadot Hub
 
-**Track:** Dual Submission (Track 1: EVM Smart Contracts + Track 2: PVM Smart Contracts) | **Hackathon:** Polkadot Solidity Hackathon 2026
+**Focus:** Production deployment on Polkadot Hub with runtime-native identity verification
 
 ---
 
 # PART 1: NON-TECHNICAL PERSPECTIVE
 
-> *For investors, judges, and business stakeholders*
+> *For investors and business stakeholders*
 
 ---
 
@@ -111,9 +111,7 @@ DocuMate is built by APAC developers passionate about Polkadot's multi-chain vis
 
 ---
 
-## The Ask
-
-We are competing as a **dual-track submission** in the Polkadot Solidity Hackathon.
+## Growth Plan
 
 ### Track Mapping
 
@@ -122,7 +120,7 @@ We are competing as a **dual-track submission** in the Polkadot Solidity Hackath
 | **Track 1: EVM Smart Contracts** | Solidity marketplace economics, immutable value split, end-to-end dApp interactions on Polkadot Hub |
 | **Track 2: PVM Smart Contracts** | Native precompile integration path, verification-gated logic, staking/slashing trust enforcement |
 
-Post-hackathon, we plan to:
+Next, we plan to:
 
 1. Deploy to Polkadot Hub mainnet
 2. Replace KILT DID mock with native precompile calls
@@ -134,7 +132,7 @@ Post-hackathon, we plan to:
 
 # PART 2: TECHNICAL PERSPECTIVE
 
-> *For developers, auditors, and technical judges*
+> *For developers and auditors*
 
 ---
 
@@ -217,14 +215,14 @@ error EmptyHash();
 
 ## KILT DID Integration
 
-### Current (Mock for Hackathon)
+### Current (Mock for Controlled Testing)
 
 ```
 mockKiltPrecompile(address) --> sets verifiedAddresses[user] = true
 onlyVerified modifier      --> checks verifiedAddresses[msg.sender]
 ```
 
-### Production Path (Post-Hackathon)
+### Production Path
 
 ```
 KILT identity precompile at 0x0000...0403
@@ -305,7 +303,7 @@ Key enums: `SubscriptionTier`, `TemplateCategory`, `VerificationStatus`, `Breach
 | **Documents** | `/api/documents/generate`, `/api/validate-document` | AI template fill, TEE validation |
 | **Marketplace** | `/api/market/templates`, `/api/market/mint`, `/api/market/purchase` | Full marketplace CRUD |
 | **Reputation** | `/api/reputation/[id]` | POC-1 history from Asset Hub blocks |
-| **Verification** | `/api/verification/submit` | Blue Check submission |
+| **Verification** | `/api/verification/submit` | Blue Check request flow |
 | **Breach** | `/api/breaches/report` | Breach reporting with self-report prevention |
 | **Admin** | `/api/admin/stats`, `/api/admin/users`, `/api/admin/templates`, `/api/admin/verification`, `/api/admin/breaches`, `/api/admin/logs` | Full admin panel |
 | **TEE** | `/api/phala-proxy` | Phala Phat Contract mock (health + process) |
@@ -325,7 +323,7 @@ Key enums: `SubscriptionTier`, `TemplateCategory`, `VerificationStatus`, `Breach
 | **TEE document validation** | MOCK | Simulated Phala Phat Contract -- interface is production-ready |
 | **AI document generation** | MOCK | Hardcoded responses -- plug in any LLM API |
 | **IPFS storage** | MOCK | CIDs generated locally -- plug in Pinata/web3.storage |
-| **POC-1 on-chain proofs** | REAL INTERFACE | `system.remark` submission ready, needs funded testnet account |
+| **POC-1 on-chain proofs** | REAL INTERFACE | `system.remark` integration ready, needs funded testnet account |
 
 ---
 
@@ -367,7 +365,7 @@ hardhat.config.js               # Solidity toolchain config
 
 ---
 
-## Post-Hackathon Roadmap
+## Product Roadmap
 
 | Phase | Timeline | Deliverables |
 |---|---|---|
@@ -378,5 +376,5 @@ hardhat.config.js               # Solidity toolchain config
 
 ---
 
-*Built for the Polkadot Solidity Hackathon 2026 by the DocuMate Team*
+*Built by the DocuMate Team*
 *Repo: github.com/documate | License: MIT*

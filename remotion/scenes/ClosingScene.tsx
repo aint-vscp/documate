@@ -107,7 +107,7 @@ export const ClosingScene: React.FC = () => {
                 ))}
             </div>
 
-            {/* Post-hackathon roadmap */}
+            {/* Product roadmap */}
             <div
                 style={{
                     opacity: ctaOpacity,
@@ -120,7 +120,7 @@ export const ClosingScene: React.FC = () => {
                     "Mainnet Deploy",
                     "KILT Precompile Integration",
                     "Phala TEE Production",
-                    "W3F Grant",
+                    "Ecosystem Partnerships",
                 ].map((item) => (
                     <div
                         key={item}
@@ -152,10 +152,10 @@ export const ClosingScene: React.FC = () => {
                 }}
             >
                 <div style={{ fontSize: 14, color: "#e6007a", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                    Polkadot Solidity Hackathon 2026
+                    Production Roadmap
                 </div>
                 <div style={{ fontSize: 20, color: "white", fontWeight: 700, marginTop: 4 }}>
-                    Dual Submission: Track 1 + Track 2
+                    Runtime-native verification and trust automation
                 </div>
             </div>
         </AbsoluteFill>

@@ -60,6 +60,7 @@ contract DocuMateMarketplace {
         uint256 treasuryAmount,
         uint256 burnAmount
     );
+    event MockVerified(address indexed account);
     event MockVerificationUpdated(address indexed account, bool verified);
     event VerificationModeUpdated(bool useMockVerification);
 
@@ -106,6 +107,12 @@ contract DocuMateMarketplace {
         if (account == address(0)) revert ZeroAddress();
         mockVerified[account] = verified;
         emit MockVerificationUpdated(account, verified);
+    }
+
+    function mockKiltPrecompile(address account) external onlyOwner {
+        if (account == address(0)) revert ZeroAddress();
+        mockVerified[account] = true;
+        emit MockVerified(account);
     }
 
     function setIdentityPrecompile(address precompile) external onlyOwner {

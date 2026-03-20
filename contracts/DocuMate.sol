@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /**
  * @title DocuMate - Decentralized Reputation & Marketplace Engine
  * @author DocuMate Team
- * @notice Track 1: EVM Smart Contract Track - Polkadot Solidity Hackathon
+ * @notice EVM smart contract layer for DocuMate on Polkadot Hub
  *
  * @dev Core contract for DocuMate's decentralized document verification
  * and marketplace with enforced revenue splitting.

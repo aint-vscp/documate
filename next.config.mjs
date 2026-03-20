@@ -22,6 +22,11 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+	images: {
+		remotePatterns: [{ protocol: "https", hostname: "**" }],
+	},
+	serverExternalPackages: ["@prisma/client", "prisma"],
+	transpilePackages: [],
 	async headers() {
 		return [
 			{
