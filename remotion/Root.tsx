@@ -1,6 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
 import { PitchVideo } from "./PitchVideo";
+import { ProductDemoVideo } from "./ProductDemoVideo";
 
 // Total video: 3 minutes = 180 seconds @ 30fps = 5400 frames
 // Breakdown:
@@ -17,6 +18,14 @@ export const Root: React.FC = () => {
             <Composition
                 id="PitchVideo"
                 component={PitchVideo}
+                durationInFrames={5400}
+                fps={30}
+                width={1920}
+                height={1080}
+            />
+            <Composition
+                id="ProductDemoVideo"
+                component={ProductDemoVideo}
                 durationInFrames={5400}
                 fps={30}
                 width={1920}
