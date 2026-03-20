@@ -5,16 +5,12 @@ function normalizeAddress(address: string): string {
     return (address || "").trim().toLowerCase();
 }
 
-function escapeSqlString(value: string): string {
-    return value.replace(/'/g, "''");
-}
-
 function isValidEvmAddress(value: string): boolean {
     return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
 async function ensureSharedDocumentTable(): Promise<void> {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS SharedDocument (
             id TEXT PRIMARY KEY,
             sender TEXT NOT NULL,
@@ -24,19 +20,7 @@ async function ensureSharedDocumentTable(): Promise<void> {
             updatedAt TEXT NOT NULL,
             payload TEXT NOT NULL
         )
-    `);
-}
-
-async function tableExists(tableName: string): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = await prisma.$queryRawUnsafe<any[]>(`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table' AND LOWER(name) = LOWER('${escapeSqlString(tableName)}')
-        LIMIT 1
-    `);
-
-    return rows.length > 0;
+    `;
 }
 
 export async function GET(request: NextRequest) {
@@ -59,36 +43,45 @@ export async function GET(request: NextRequest) {
             amount: string | null;
         }> = [];
 
-        const hasPurchaseTable = await tableExists("Purchase");
-        if (hasPurchaseTable) {
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                purchases = await prisma.$queryRawUnsafe<any[]>(`
-                    SELECT
-                        'MARKET_PURCHASE' AS type,
-                        p.txHash AS txHash,
-                        p.createdAt AS createdAt,
-                        p.templateId AS referenceId,
-                        p.totalPrice AS amount
-                    FROM Purchase p
-                    WHERE LOWER(p.buyerAddress) = '${escapeSqlString(walletAddress)}'
-                       OR LOWER(p.sellerAddress) = '${escapeSqlString(walletAddress)}'
-                    ORDER BY p.createdAt DESC
-                    LIMIT 50
-                `);
-            } catch {
-                // Non-fatal: keep activity feed available from document anchors.
-            }
+        try {
+            const purchaseRows = await prisma.purchase.findMany({
+                where: {
+                    OR: [
+                        { buyerAddress: { equals: walletAddress, mode: "insensitive" } },
+                        { sellerAddress: { equals: walletAddress, mode: "insensitive" } },
+                    ],
+                },
+                orderBy: { createdAt: "desc" },
+                take: 50,
+                select: {
+                    txHash: true,
+                    createdAt: true,
+                    templateId: true,
+                    totalPrice: true,
+                },
+            });
+
+            purchases = purchaseRows
+                .filter((row) => typeof row.txHash === "string" && row.txHash.length > 0)
+                .map((row) => ({
+                    type: "MARKET_PURCHASE",
+                    txHash: String(row.txHash),
+                    createdAt: row.createdAt.toISOString(),
+                    referenceId: row.templateId,
+                    amount: row.totalPrice != null ? String(row.totalPrice) : null,
+                }));
+        } catch {
+            // Non-fatal: keep activity feed available from document anchors.
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const docs = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT payload
-            FROM SharedDocument
-            WHERE sender = '${escapeSqlString(walletAddress)}' OR receiver = '${escapeSqlString(walletAddress)}'
-            ORDER BY updatedAt DESC
-            LIMIT 100
-        `);
+        const docs = await prisma.sharedDocument.findMany({
+            where: {
+                OR: [{ sender: walletAddress }, { receiver: walletAddress }],
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 100,
+            select: { payload: true },
+        });
 
         const docAnchors = docs
             .map((row) => {

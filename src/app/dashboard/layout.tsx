@@ -139,14 +139,13 @@ export default function DashboardLayout({
             <aside className="fixed left-0 top-0 h-full w-64 bg-[#111722]/95 backdrop-blur-xl border-r border-white/[0.08] z-40">
                 <div className="px-5 py-5 border-b border-white/[0.07]">
                     <Link href="/" className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 max-h-8 rounded-lg overflow-hidden border border-orange-300/25 bg-orange-400/10 shrink-0">
+                        <div className="h-7 w-auto shrink-0">
                             <Image
                                 src="/logo.png"
                                 alt="DocuMate"
-                                width={32}
-                                height={32}
-                                className="h-full w-full object-cover"
-                                priority
+                                width={28}
+                                height={28}
+                                style={{ objectFit: "contain" }}
                             />
                         </div>
                         <div>

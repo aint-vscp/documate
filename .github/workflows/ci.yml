@@ -31,5 +31,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Contract tests
+      - name: Run contract tests
         run: npx hardhat test

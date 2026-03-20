@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-function escapeSqlString(value: string): string {
-    return value.replace(/'/g, "''");
-}
-
 async function ensureDirectoryTable(): Promise<void> {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS DirectoryProfile (
             walletAddress TEXT PRIMARY KEY,
             did TEXT,
@@ -19,7 +15,7 @@ async function ensureDirectoryTable(): Promise<void> {
             tagsJson TEXT NOT NULL DEFAULT '[]',
             updatedAt TEXT NOT NULL
         )
-    `);
+    `;
 }
 
 export async function GET(request: NextRequest) {
@@ -31,39 +27,33 @@ export async function GET(request: NextRequest) {
         const engagementType = (request.nextUrl.searchParams.get("engagementType") || "").trim().toUpperCase();
         const includeUnverified = (request.nextUrl.searchParams.get("includeUnverified") || "").trim().toLowerCase() === "true";
 
-        const filters: string[] = ["1=1"];
-
-        if (!includeUnverified) {
-            filters.push("did IS NOT NULL AND TRIM(did) <> ''");
-        }
-
-        if (search) {
-            const q = escapeSqlString(search);
-            filters.push(`(
-                LOWER(displayName) LIKE '%${q}%' OR
-                LOWER(role) LIKE '%${q}%' OR
-                LOWER(bio) LIKE '%${q}%' OR
-                LOWER(skillsJson) LIKE '%${q}%' OR
-                LOWER(tagsJson) LIKE '%${q}%'
-            )`);
-        }
-
-        if (entityType) {
-            filters.push(`entityType = '${escapeSqlString(entityType)}'`);
-        }
-
-        if (engagementType) {
-            filters.push(`engagementType = '${escapeSqlString(engagementType)}'`);
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT *
-            FROM DirectoryProfile
-            WHERE ${filters.join(" AND ")}
-            ORDER BY updatedAt DESC
-            LIMIT 100
-        `);
+        const rows = await prisma.directoryProfile.findMany({
+            where: {
+                ...(includeUnverified
+                    ? {}
+                    : {
+                        AND: [
+                            { did: { not: null } },
+                            { did: { not: "" } },
+                        ],
+                    }),
+                ...(search
+                    ? {
+                        OR: [
+                            { displayName: { contains: search, mode: "insensitive" } },
+                            { role: { contains: search, mode: "insensitive" } },
+                            { bio: { contains: search, mode: "insensitive" } },
+                            { skillsJson: { contains: search, mode: "insensitive" } },
+                            { tagsJson: { contains: search, mode: "insensitive" } },
+                        ],
+                    }
+                    : {}),
+                ...(entityType ? { entityType } : {}),
+                ...(engagementType ? { engagementType } : {}),
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 100,
+        });
 
         const data = rows.map((row) => ({
             walletAddress: row.walletAddress,
@@ -78,14 +68,14 @@ export async function GET(request: NextRequest) {
             updatedAt: row.updatedAt,
         }));
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const verifiedCountRows = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT COUNT(*) AS count
-            FROM DirectoryProfile
-            WHERE did IS NOT NULL AND TRIM(did) <> ''
-        `);
-
-        const verifiedProfilesCount = Number(verifiedCountRows?.[0]?.count ?? 0);
+        const verifiedProfilesCount = await prisma.directoryProfile.count({
+            where: {
+                AND: [
+                    { did: { not: null } },
+                    { did: { not: "" } },
+                ],
+            },
+        });
         const emptyReason = data.length > 0
             ? null
             : (verifiedProfilesCount === 0

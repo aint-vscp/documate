@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-function escapeSqlString(value: string): string {
-    return value.replace(/'/g, "''");
-}
-
 function normalizeAddress(address: string): string {
     return (address || "").trim().toLowerCase();
 }
@@ -14,7 +10,7 @@ function isValidEvmAddress(value: string): boolean {
 }
 
 async function ensureDirectoryTable(): Promise<void> {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS DirectoryProfile (
             walletAddress TEXT PRIMARY KEY,
             did TEXT,
@@ -27,7 +23,7 @@ async function ensureDirectoryTable(): Promise<void> {
             tagsJson TEXT NOT NULL DEFAULT '[]',
             updatedAt TEXT NOT NULL
         )
-    `);
+    `;
 }
 
 export async function POST(request: NextRequest) {
@@ -45,40 +41,33 @@ export async function POST(request: NextRequest) {
 
         await ensureDirectoryTable();
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT tagsJson
-            FROM DirectoryProfile
-            WHERE walletAddress = '${escapeSqlString(walletAddress)}'
-            LIMIT 1
-        `);
+        const profile = await prisma.directoryProfile.findUnique({
+            where: { walletAddress },
+            select: { tagsJson: true },
+        });
 
-        const existingTags = rows.length > 0
-            ? (JSON.parse(rows[0].tagsJson ?? "[]") as string[])
+        const existingTags = profile
+            ? (JSON.parse(profile.tagsJson ?? "[]") as string[])
             : [];
 
         const mergedTags = Array.from(new Set([...existingTags, ...incomingTags]));
         const now = new Date().toISOString();
 
-        await prisma.$executeRawUnsafe(`
-            INSERT INTO DirectoryProfile (
+        await prisma.directoryProfile.upsert({
+            where: { walletAddress },
+            create: {
                 walletAddress,
-                entityType,
-                engagementType,
-                tagsJson,
-                updatedAt
-            )
-            VALUES (
-                '${escapeSqlString(walletAddress)}',
-                'INDIVIDUAL',
-                'SEEKING_WORK',
-                '${escapeSqlString(JSON.stringify(mergedTags))}',
-                '${escapeSqlString(now)}'
-            )
-            ON CONFLICT(walletAddress) DO UPDATE SET
-                tagsJson = '${escapeSqlString(JSON.stringify(mergedTags))}',
-                updatedAt = '${escapeSqlString(now)}'
-        `);
+                entityType: "INDIVIDUAL",
+                engagementType: "SEEKING_WORK",
+                tagsJson: JSON.stringify(mergedTags),
+                skillsJson: "[]",
+                updatedAt: now,
+            },
+            update: {
+                tagsJson: JSON.stringify(mergedTags),
+                updatedAt: now,
+            },
+        });
 
         return NextResponse.json({ success: true, data: mergedTags });
     } catch (error) {

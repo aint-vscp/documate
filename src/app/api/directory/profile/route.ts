@@ -13,10 +13,6 @@ interface DirectoryProfilePayload {
     tags?: string[];
 }
 
-function escapeSqlString(value: string): string {
-    return value.replace(/'/g, "''");
-}
-
 function normalizeAddress(address: string): string {
     return (address || "").trim().toLowerCase();
 }
@@ -26,7 +22,7 @@ function isValidEvmAddress(value: string): boolean {
 }
 
 async function ensureDirectoryTable(): Promise<void> {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS DirectoryProfile (
             walletAddress TEXT PRIMARY KEY,
             did TEXT,
@@ -39,17 +35,11 @@ async function ensureDirectoryTable(): Promise<void> {
             tagsJson TEXT NOT NULL DEFAULT '[]',
             updatedAt TEXT NOT NULL
         )
-    `);
+    `;
 
-    await prisma.$executeRawUnsafe(
-        "CREATE INDEX IF NOT EXISTS idx_directory_profile_name ON DirectoryProfile(displayName)"
-    );
-    await prisma.$executeRawUnsafe(
-        "CREATE INDEX IF NOT EXISTS idx_directory_profile_role ON DirectoryProfile(role)"
-    );
-    await prisma.$executeRawUnsafe(
-        "CREATE INDEX IF NOT EXISTS idx_directory_profile_entity ON DirectoryProfile(entityType)"
-    );
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_directory_profile_name ON DirectoryProfile(displayName)`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_directory_profile_role ON DirectoryProfile(role)`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_directory_profile_entity ON DirectoryProfile(entityType)`;
 }
 
 export async function GET(request: NextRequest) {
@@ -65,19 +55,14 @@ export async function GET(request: NextRequest) {
         await ensureDirectoryTable();
 
         const normalizedAddress = normalizeAddress(walletAddress);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT *
-            FROM DirectoryProfile
-            WHERE walletAddress = '${escapeSqlString(normalizedAddress)}'
-            LIMIT 1
-        `);
+        const row = await prisma.directoryProfile.findUnique({
+            where: { walletAddress: normalizedAddress },
+        });
 
-        if (rows.length === 0) {
+        if (!row) {
             return NextResponse.json({ success: true, data: null });
         }
 
-        const row = rows[0];
         return NextResponse.json({
             success: true,
             data: {
@@ -126,9 +111,10 @@ export async function POST(request: NextRequest) {
         const skillsJson = JSON.stringify(Array.isArray(body.skills) ? body.skills : []);
         const tagsJson = JSON.stringify(Array.isArray(body.tags) ? body.tags : []);
 
-        await prisma.$executeRawUnsafe(`
-            INSERT INTO DirectoryProfile (
-                walletAddress,
+        await prisma.directoryProfile.upsert({
+            where: { walletAddress: normalizedAddress },
+            create: {
+                walletAddress: normalizedAddress,
                 did,
                 displayName,
                 role,
@@ -137,31 +123,20 @@ export async function POST(request: NextRequest) {
                 engagementType,
                 skillsJson,
                 tagsJson,
-                updatedAt
-            )
-            VALUES (
-                '${escapeSqlString(normalizedAddress)}',
-                ${did ? `'${escapeSqlString(did)}'` : "NULL"},
-                '${escapeSqlString(displayName)}',
-                '${escapeSqlString(role)}',
-                '${escapeSqlString(bio)}',
-                '${escapeSqlString(entityType)}',
-                '${escapeSqlString(engagementType)}',
-                '${escapeSqlString(skillsJson)}',
-                '${escapeSqlString(tagsJson)}',
-                '${escapeSqlString(now)}'
-            )
-            ON CONFLICT(walletAddress) DO UPDATE SET
-                did = excluded.did,
-                displayName = excluded.displayName,
-                role = excluded.role,
-                bio = excluded.bio,
-                entityType = excluded.entityType,
-                engagementType = excluded.engagementType,
-                skillsJson = excluded.skillsJson,
-                tagsJson = excluded.tagsJson,
-                updatedAt = excluded.updatedAt
-        `);
+                updatedAt: now,
+            },
+            update: {
+                did,
+                displayName,
+                role,
+                bio,
+                entityType,
+                engagementType,
+                skillsJson,
+                tagsJson,
+                updatedAt: now,
+            },
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

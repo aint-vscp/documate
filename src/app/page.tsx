@@ -14,11 +14,32 @@ const stats = [
   { label: "Trust Layer",    value: "POC-1",    sub: "Proof of Contract" },
 ];
 
-const winReasons = [
-  "Problem has measurable financial harm ($10B+ consumer fraud, $367M+ employment scams).",
-  "Contracts and core flows are testnet-validated, not static mocks.",
-  "Economics are encoded on-chain: 75% creator, 20% treasury, 5% community staking pool.",
-  "Runtime identity, settlement, and reputation are unified under one trust architecture.",
+const comparisonRows = [
+  {
+    feature: "Identity Verification",
+    others: "Email confirmation or manual KYC - centralized, spoofable, revocable",
+    documate: "KILT DID anchored on-chain via Polkadot identity precompile - cryptographic, self-sovereign, permanent",
+  },
+  {
+    feature: "Document Authenticity",
+    others: "PDF with a digital signature - copied in seconds, no chain of custody",
+    documate: "Document hash written on-chain at signing - tamper-proof, timestamped, publicly verifiable",
+  },
+  {
+    feature: "Revenue & Economics",
+    others: "Platform takes 15-30% with no transparency on where fees go",
+    documate: "75% creator, 20% treasury, 5% staking pool - hardcoded in the contract, immutable, on-chain",
+  },
+  {
+    feature: "Reputation & Accountability",
+    others: "LinkedIn endorsements - anyone can write anything, zero verification",
+    documate: "Reputation tags derived from verified on-chain contract history - you are what you sign",
+  },
+  {
+    feature: "Fraud Consequence",
+    others: "Terms of service violation - account banned, data deleted, no real consequence",
+    documate: "On-chain staking slash - permanent Breach tag on profile, cryptographic proof of violation",
+  },
 ];
 
 const archItems = [
@@ -52,8 +73,8 @@ export default function HomePage() {
       <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.08] bg-[#131a26]/88 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
-              <Image src="/logo.png" alt="DocuMate" width={32} height={32} className="w-full h-full object-cover" priority />
+            <div className="h-8 w-auto shrink-0">
+              <Image src="/logo.png" alt="DocuMate" width={32} height={32} style={{ objectFit: "contain" }} priority={true} />
             </div>
             <span className="text-base font-bold gradient-text">DocuMate</span>
             <span className="neon-tag hidden md:inline-flex">Dual Track</span>
@@ -84,14 +105,6 @@ export default function HomePage() {
 
             {/* left */}
             <div>
-              <div className="mb-6 flex items-center gap-4">
-                <div className="h-16 w-16 rounded-2xl overflow-hidden border border-orange-300/25 bg-white/[0.03]">
-                  <Image src="/logo.png" alt="DocuMate" width={64} height={64} className="h-full w-full object-cover" priority />
-                </div>
-                <div className="hidden lg:block h-24 w-24 rounded-3xl overflow-hidden border border-orange-300/25 bg-white/[0.03]">
-                  <Image src="/logo.png" alt="DocuMate" width={96} height={96} className="h-full w-full object-cover" priority />
-                </div>
-              </div>
               <p className="mono-label text-[10px] text-white/25 tracking-widest">Polkadot Hub Runtime dApp</p>
               <h1 className="mt-4 text-5xl font-bold leading-tight text-white md:text-6xl lg:text-7xl">
                 End Fraud with<br />
@@ -126,14 +139,26 @@ export default function HomePage() {
             <div className="surface-card p-6">
               <div className="flex items-center gap-2 mb-5">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shrink-0" />
-                <p className="mono-label text-[10px] text-cyan-300/80">Quick Product Read</p>
+                <p className="mono-label text-[10px] text-cyan-300/80">WHY DOCUMATE</p>
               </div>
-              <h2 className="text-xl font-bold text-white">Why this is production-ready</h2>
-              <div className="mt-4 space-y-3">
-                {winReasons.map((point, i) => (
-                  <div key={i} className="flex gap-3">
-                    <span className="mono-label text-[10px] text-white/20 shrink-0 mt-1.5">0{i + 1}</span>
-                    <p className="text-sm text-white/55 leading-6">{point}</p>
+              <h2 className="text-xl font-bold text-white">DocuMate vs the alternatives</h2>
+              <p className="mt-1 text-xs text-white/35 sm:hidden">(vs traditional platforms)</p>
+              <div className="mt-4 space-y-2.5">
+                {comparisonRows.map((row, i) => (
+                  <div key={row.feature} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                    <div className="grid grid-cols-[84px_1fr] gap-3 sm:grid-cols-[86px_1fr_1fr] sm:items-start">
+                      <p className="mono-label text-[10px] text-white/20 uppercase leading-4">
+                        0{i + 1} {row.feature}
+                      </p>
+                      <p className="hidden text-xs text-white/45 leading-5 sm:block">
+                        <span className="text-red-300/60">✗ </span>
+                        {row.others}
+                      </p>
+                      <p className="text-xs text-amber-300 leading-5">
+                        <span className="text-amber-300">✓ </span>
+                        {row.documate}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -212,14 +237,9 @@ export default function HomePage() {
       {/* footer */}
       <footer className="relative z-10 px-6 py-8">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between border-t border-white/[0.06] pt-6">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg overflow-hidden border border-white/10 bg-white/[0.03] shrink-0">
-              <Image src="/logo.png" alt="DocuMate" width={32} height={32} className="h-full w-full object-cover" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white">DocuMate</p>
-              <p className="mt-0.5 text-xs text-white/25">Decentralized reputation and document trust infrastructure.</p>
-            </div>
+          <div>
+            <p className="text-sm font-bold text-white">DocuMate</p>
+            <p className="mt-0.5 text-xs text-white/25">Decentralized reputation and document trust infrastructure.</p>
           </div>
           <div className="flex items-center gap-5 text-xs text-white/35">
             <Link href="/whitepaper" className="hover:text-white transition-colors">Whitepaper</Link>

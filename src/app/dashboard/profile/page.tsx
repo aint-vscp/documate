@@ -227,7 +227,9 @@ export default function ProfilePage() {
             );
         } catch {
             setKiltStatusAvailable(false);
-            setKiltStatusMessage("Could not reach verification service - check your connection");
+            setKiltStatusMessage(
+                "KILT network infrastructure is currently migrating. Identity verification is temporarily unavailable."
+            );
         } finally {
             setIsCheckingKiltStatus(false);
         }
@@ -743,9 +745,21 @@ export default function ProfilePage() {
                                         <span className="h-2 w-2 rounded-full bg-amber-400" />
                                         KILT Network Unavailable
                                     </p>
-                                    <p className="mt-1 text-xs text-amber-200/90">{kiltStatusMessage}</p>
+                                    <p className="mt-1 text-xs text-amber-200/90">KILT Identity Network</p>
                                     <p className="mt-1 text-xs text-amber-200/80">
-                                        KILT Network is currently offline. Your wallet can be verified manually by the contract owner.
+                                        The KILT network is currently undergoing infrastructure migration.
+                                    </p>
+                                    <p className="mt-1 text-xs text-amber-200/80">
+                                        Verification will be re-enabled once the migration is complete.
+                                    </p>
+                                    <p className="mt-1 text-xs text-amber-200/80">
+                                        Check status at: <a href="https://status.kilt.io" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-100">status.kilt.io</a>
+                                    </p>
+                                    <p className="mt-1 text-xs text-amber-200/80">
+                                        {kiltStatusMessage}
+                                    </p>
+                                    <p className="mt-1 text-xs text-amber-200/80">
+                                        Your wallet can be verified manually by the contract owner.
                                         Send your wallet address to the admin and they will run on-chain verification for you.
                                     </p>
                                 </div>
@@ -760,7 +774,6 @@ export default function ProfilePage() {
                                         : "bg-white/[0.03] border-white/[0.08] text-white/40 pointer-events-none"
                                     }`}
                                     title={kiltStatusAvailable ? "Open KILT DID management" : "KILT network is unavailable"}
-                                    aria-disabled={!kiltStatusAvailable}
                                 >
                                     Create/Manage KILT DID
                                 </a>

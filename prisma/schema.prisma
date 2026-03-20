@@ -302,6 +302,37 @@ model AdminLog {
   @@index([targetType, targetId])
 }
 
+model DirectoryProfile {
+  walletAddress  String  @id
+  did            String?
+  displayName    String?
+  role           String?
+  bio            String?
+  entityType     String?
+  engagementType String?
+  skillsJson     String  @default("[]")
+  tagsJson       String  @default("[]")
+  updatedAt      String
+
+  @@index([displayName])
+  @@index([role])
+  @@index([entityType])
+}
+
+model SharedDocument {
+  id        String @id
+  sender    String
+  receiver  String
+  status    String
+  createdAt String
+  updatedAt String
+  payload   String
+
+  @@index([sender])
+  @@index([receiver])
+  @@index([updatedAt])
+}
+
 // ============================================================
 // INDEXER STATE (for chain sync)
 // ============================================================

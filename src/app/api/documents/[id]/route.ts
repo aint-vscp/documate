@@ -44,7 +44,7 @@ function parsePayload(payload: string): DocumentInstance | null {
 
 
 async function ensureTable(): Promise<void> {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS SharedDocument (
             id TEXT PRIMARY KEY,
             sender TEXT NOT NULL,
@@ -54,7 +54,7 @@ async function ensureTable(): Promise<void> {
             updatedAt TEXT NOT NULL,
             payload TEXT NOT NULL
         )
-    `);
+    `;
 }
 
 export async function GET(
@@ -73,17 +73,16 @@ export async function GET(
 
         await ensureTable();
 
-        const escapedId = id.replace(/'/g, "''");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = await prisma.$queryRawUnsafe<any[]>(
-            `SELECT payload FROM SharedDocument WHERE id = '${escapedId}' LIMIT 1`
-        );
+        const row = await prisma.sharedDocument.findUnique({
+            where: { id },
+            select: { payload: true },
+        });
 
-        if (rows.length === 0) {
+        if (!row) {
             return NextResponse.json({ success: false, error: "Document not found" }, { status: 404 });
         }
 
-        const document = parsePayload(String(rows[0]?.payload ?? ""));
+        const document = parsePayload(String(row.payload ?? ""));
         if (!document) {
             return NextResponse.json(
                 { success: false, error: "Stored document payload is invalid" },

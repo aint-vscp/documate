@@ -55,7 +55,7 @@ function withNormalizedAnchorMetadata(document: DocumentInstance): DocumentInsta
 }
 
 async function ensureTable(): Promise<void> {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS SharedDocument (
             id TEXT PRIMARY KEY,
             sender TEXT NOT NULL,
@@ -65,17 +65,11 @@ async function ensureTable(): Promise<void> {
             updatedAt TEXT NOT NULL,
             payload TEXT NOT NULL
         )
-    `);
+    `;
 
-    await prisma.$executeRawUnsafe(
-        "CREATE INDEX IF NOT EXISTS idx_shared_document_sender ON SharedDocument(sender)"
-    );
-    await prisma.$executeRawUnsafe(
-        "CREATE INDEX IF NOT EXISTS idx_shared_document_receiver ON SharedDocument(receiver)"
-    );
-    await prisma.$executeRawUnsafe(
-        "CREATE INDEX IF NOT EXISTS idx_shared_document_updated_at ON SharedDocument(updatedAt DESC)"
-    );
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_shared_document_sender ON SharedDocument(sender)`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_shared_document_receiver ON SharedDocument(receiver)`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_shared_document_updated_at ON SharedDocument(updatedAt DESC)`;
 }
 
 function parsePayload(payload: string): DocumentInstance | null {
@@ -104,15 +98,13 @@ export async function GET(request: NextRequest) {
         const normalized = normalizeAddress(walletAddress);
         await ensureTable();
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = await prisma.$queryRawUnsafe<any[]>(
-            `
-                SELECT payload
-                FROM SharedDocument
-                WHERE sender = '${normalized.replace(/'/g, "''")}' OR receiver = '${normalized.replace(/'/g, "''")}'
-                ORDER BY updatedAt DESC
-            `
-        );
+        const rows = await prisma.sharedDocument.findMany({
+            where: {
+                OR: [{ sender: normalized }, { receiver: normalized }],
+            },
+            orderBy: { updatedAt: "desc" },
+            select: { payload: true },
+        });
 
         const documents = rows
             .map((row) => parsePayload(String(row.payload ?? "")))
@@ -171,24 +163,25 @@ export async function POST(request: NextRequest) {
 
         await ensureTable();
 
-        const escapedId = normalizedWithAnchor.id.replace(/'/g, "''");
-        const escapedSender = sender.replace(/'/g, "''");
-        const escapedReceiver = receiver.replace(/'/g, "''");
-        const escapedStatus = normalizedWithAnchor.status.replace(/'/g, "''");
-        const escapedCreatedAt = normalizedWithAnchor.createdAt.replace(/'/g, "''");
-        const escapedUpdatedAt = normalizedWithAnchor.updatedAt.replace(/'/g, "''");
-        const escapedPayload = JSON.stringify(normalizedWithAnchor).replace(/'/g, "''");
-
-        await prisma.$executeRawUnsafe(`
-            INSERT INTO SharedDocument (id, sender, receiver, status, createdAt, updatedAt, payload)
-            VALUES ('${escapedId}', '${escapedSender}', '${escapedReceiver}', '${escapedStatus}', '${escapedCreatedAt}', '${escapedUpdatedAt}', '${escapedPayload}')
-            ON CONFLICT(id) DO UPDATE SET
-                sender = excluded.sender,
-                receiver = excluded.receiver,
-                status = excluded.status,
-                updatedAt = excluded.updatedAt,
-                payload = excluded.payload
-        `);
+        await prisma.sharedDocument.upsert({
+            where: { id: normalizedWithAnchor.id },
+            create: {
+                id: normalizedWithAnchor.id,
+                sender,
+                receiver,
+                status: normalizedWithAnchor.status,
+                createdAt: normalizedWithAnchor.createdAt,
+                updatedAt: normalizedWithAnchor.updatedAt,
+                payload: JSON.stringify(normalizedWithAnchor),
+            },
+            update: {
+                sender,
+                receiver,
+                status: normalizedWithAnchor.status,
+                updatedAt: normalizedWithAnchor.updatedAt,
+                payload: JSON.stringify(normalizedWithAnchor),
+            },
+        });
 
         return NextResponse.json({ success: true, data: normalizedWithAnchor });
     } catch (error) {

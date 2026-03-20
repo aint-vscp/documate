@@ -28,9 +28,9 @@ export const metadata: Metadata = {
     "NFT",
   ],
   icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
   },
   openGraph: {
     title: "DocuMate Ember | Decentralized Trust Infrastructure",

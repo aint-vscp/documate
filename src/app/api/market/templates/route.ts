@@ -8,10 +8,6 @@ import prisma from "@/lib/db";
 
 const ALLOWED_CATEGORIES = new Set(["LEGAL", "CREATIVE", "ENGINEERING"]);
 
-function escapeSqlString(value: string): string {
-    return value.replace(/'/g, "''");
-}
-
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = request.nextUrl;
@@ -49,55 +45,51 @@ export async function GET(request: NextRequest) {
             where.isVerified = true;
         }
 
-        const sqlFilters: string[] = ["t.isListed = 1"];
-
-        if (typeof where.category === "string" && ALLOWED_CATEGORIES.has(where.category)) {
-            sqlFilters.push(`t.category = '${escapeSqlString(where.category)}'`);
+        if (category && category !== "ALL" && !ALLOWED_CATEGORIES.has(category)) {
+            return NextResponse.json({
+                success: true,
+                data: [],
+                pagination: {
+                    page,
+                    limit,
+                    total: 0,
+                    totalPages: 0,
+                },
+            });
         }
 
-        if (where.isVerified === true) {
-            sqlFilters.push("t.isVerified = 1");
-        }
-
-        if (search) {
-            const escapedSearch = escapeSqlString(search.trim().toLowerCase());
-            if (escapedSearch.length > 0) {
-                sqlFilters.push(
-                    `(LOWER(t.title) LIKE '%${escapedSearch}%' OR LOWER(t.description) LIKE '%${escapedSearch}%')`
-                );
-            }
-        }
-
-        const sql = `
-            SELECT
-                t.*,
-                u.walletAddress AS creatorWalletAddress,
-                u.did AS creatorDid,
-                COALESCE(p.purchaseCount, 0) AS purchaseCount
-            FROM Template t
-            LEFT JOIN User u ON u.id = t.creatorId
-            LEFT JOIN (
-                SELECT templateId, COUNT(*) AS purchaseCount
-                FROM Purchase
-                GROUP BY templateId
-            ) p ON p.templateId = t.id
-            WHERE ${sqlFilters.join(" AND ")}
-            ORDER BY t.createdAt DESC
-        `;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = await prisma.$queryRawUnsafe<any[]>(sql);
+        const total = await prisma.template.count({ where });
+        const rows = await prisma.template.findMany({
+            where,
+            include: {
+                creator: {
+                    select: {
+                        walletAddress: true,
+                        did: true,
+                    },
+                },
+                _count: {
+                    select: {
+                        purchases: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+            skip: (page - 1) * limit,
+            take: limit,
+        });
 
         const ownedTemplateIds = new Set<string>();
-        if (buyerAddress) {
-            const ownedSql = `
-                SELECT towner.templateId AS templateId
-                FROM TemplateOwnership towner
-                INNER JOIN User u ON u.id = towner.userId
-                WHERE LOWER(u.walletAddress) = '${escapeSqlString(buyerAddress)}'
-            `;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const ownedRows = await prisma.$queryRawUnsafe<any[]>(ownedSql);
+        if (buyerAddress && rows.length > 0) {
+            const ownedRows = await prisma.templateOwnership.findMany({
+                where: {
+                    templateId: { in: rows.map((row) => row.id) },
+                    user: {
+                        walletAddress: { equals: buyerAddress, mode: "insensitive" },
+                    },
+                },
+                select: { templateId: true },
+            });
             ownedRows.forEach((row) => {
                 if (row?.templateId) {
                     ownedTemplateIds.add(String(row.templateId));
@@ -105,30 +97,26 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const total = rows.length;
-        const offset = (page - 1) * limit;
-        const templates = rows.slice(offset, offset + limit).map((row) => {
+        const templates = rows.map((row) => {
             const {
-                creatorWalletAddress,
-                creatorDid,
-                purchaseCount,
+                creator,
+                _count,
                 ...template
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            }: any = row;
+            } = row;
 
             return {
                 ...template,
                 creator: {
-                    walletAddress: creatorWalletAddress ?? null,
-                    did: creatorDid ?? null,
+                    walletAddress: creator?.walletAddress ?? null,
+                    did: creator?.did ?? null,
                 },
                 isCreator:
-                    buyerAddress && creatorWalletAddress
-                        ? String(creatorWalletAddress).toLowerCase() === buyerAddress
+                    buyerAddress && creator?.walletAddress
+                        ? String(creator.walletAddress).toLowerCase() === buyerAddress
                         : false,
                 alreadyOwned: buyerAddress ? ownedTemplateIds.has(String(template.id)) : false,
                 _count: {
-                    purchases: Number(purchaseCount ?? 0),
+                    purchases: Number(_count.purchases ?? 0),
                 },
             };
         });

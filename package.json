@@ -13,6 +13,7 @@
     "verify:wallet": "node scripts/verify-wallet.js",
     "testnet:smoke": "node scripts/testnet-smoke-track2.js",
     "testnet:config-check": "node scripts/testnet-config-check.js",
+    "kilt:create-did": "node scripts/create-kilt-did.js",
     "demo:fallback-check": "node scripts/demo-fallback-check.js",
     "release:checklist": "npm run lint && npm run contracts:compile && npm run contracts:test && npm run testnet:config-check && npm run demo:fallback-check",
     "video:studio": "npx remotion studio",

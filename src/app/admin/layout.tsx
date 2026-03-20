@@ -195,14 +195,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="flex items-center justify-between px-6 py-4">
                     <div className="flex items-center gap-4">
                         <Link href="/" className="flex items-center gap-2">
-                            <div className="w-10 h-10 max-h-8 rounded-xl overflow-hidden border border-orange-300/25 bg-orange-400/10 shadow-[0_8px_24px_rgba(246,133,27,0.35)]">
+                            <div className="h-8 w-auto shrink-0">
                                 <Image
                                     src="/logo.png"
                                     alt="DocuMate"
                                     width={32}
                                     height={32}
-                                    className="h-full w-full object-cover"
-                                    priority
+                                    style={{ objectFit: "contain" }}
                                 />
                             </div>
                             <div>
